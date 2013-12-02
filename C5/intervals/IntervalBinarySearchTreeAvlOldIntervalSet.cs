@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Diagnostics.Contracts;
 using System.Linq;
+using System.Threading;
 using QuickGraph;
 using QuickGraph.Graphviz;
 using QuickGraph.Graphviz.Dot;
@@ -14,7 +15,7 @@ namespace C5.intervals
     /// </summary>
     /// <typeparam name="I">The interval type.</typeparam>
     /// <typeparam name="T">The interval endpoint type.</typeparam>
-    public class IntervalBinarySearchTreeAvl<I, T> : CollectionValueBase<I>, IIntervalCollection<I, T>
+    public class IntervalBinarySearchTreeAvlOldIntervalSet<I, T> : CollectionValueBase<I>, IIntervalCollection<I, T>
         where I : IInterval<T>
         where T : IComparable<T>
     {
@@ -288,6 +289,14 @@ namespace C5.intervals
                         yield return interval;
             }
 
+            public static int fib(int n)
+            {
+                if (n == 0 || n == 1)
+                    return n;
+                return (fib(n - 1) + fib(n - 2));
+            }
+
+
             /// <summary>
             /// Update the maximum overlap value for the node.
             /// </summary>
@@ -295,6 +304,16 @@ namespace C5.intervals
             public bool UpdateMaximumOverlap()
             {
                 Contract.Ensures(Contract.Result<bool>() == (Contract.OldValue(Max) != Max || Contract.OldValue(Sum) != Sum));
+
+//                var dummy = fib(30);
+
+                Max = (new[]
+                {
+                    (Left != null ? Left.Max : 0),
+                    (Left != null ? Left.Sum : 0) + DeltaAt,
+                    (Left != null ? Left.Sum : 0) + DeltaAt + DeltaAfter,
+                    (Left != null ? Left.Sum : 0) + DeltaAt + DeltaAfter + (Right != null ? Right.Max : 0)
+                }).Max();
 
                 // Cache values
                 var oldMax = Max;
@@ -610,7 +629,7 @@ namespace C5.intervals
         /// Create an Interval Binary Search Tree with a collection of intervals.
         /// </summary>
         /// <param name="intervals">The collection of intervals.</param>
-        public IntervalBinarySearchTreeAvl(IEnumerable<I> intervals)
+        public IntervalBinarySearchTreeAvlOldIntervalSet(IEnumerable<I> intervals)
         {
             Contract.Requires(intervals != null);
 
@@ -623,7 +642,7 @@ namespace C5.intervals
         /// <summary>
         /// Create empty Interval Binary Search Tree.
         /// </summary>
-        public IntervalBinarySearchTreeAvl()
+        public IntervalBinarySearchTreeAvlOldIntervalSet()
         {
         }
 
