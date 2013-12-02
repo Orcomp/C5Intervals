@@ -16,10 +16,11 @@
         <Button Height="25" HorizontalAlignment="Right" Margin="0,0,120,60" 
         	x:Name="ExportPDF" VerticalAlignment="Bottom"
         	Width="75" Click="savePdf" Content="Export PDF" BorderThickness="0" Background="#FFDDDDDD"/>
-        <CheckBox Content="Quick" HorizontalAlignment="Right" Margin="0,0,230,72" VerticalAlignment="Bottom" Checked="CheckBox_Checked_RunQuick" Unchecked="CheckBox_Unchecked_RunQuick" BorderThickness="0" IsChecked="False"/>
-        <CheckBox Content="Warmup" HorizontalAlignment="Right" Margin="0,0,215,58" VerticalAlignment="Bottom" Checked="CheckBox_Checked_RunWarmups" Unchecked="CheckBox_Unchecked_RunWarmups" BorderThickness="0" IsChecked="True"/>
+        <CheckBox Content="Quick" HorizontalAlignment="Right" Margin="0,0,230,72" VerticalAlignment="Bottom" Checked="CheckBox_Checked_RunQuick" Unchecked="CheckBox_Unchecked_RunQuick" BorderThickness="0" IsChecked="True"/>
+        <CheckBox Content="Warmup" HorizontalAlignment="Right" Margin="0,0,215,58" VerticalAlignment="Bottom" Checked="CheckBox_Checked_RunWarmups" Unchecked="CheckBox_Unchecked_RunWarmups" BorderThickness="0" IsChecked="False"/>
         <ProgressBar x:Name="progress" HorizontalAlignment="Right" Height="25" Margin="0,0,305,60" VerticalAlignment="Bottom" Width="200" ValueChanged="ProgressBar_ValueChanged" BorderThickness="0"/>
         <CheckBox x:Name="runSequentialCheckBox" Content="Sequential" HorizontalAlignment="Right" Margin="0,0,205,44" VerticalAlignment="Bottom" Checked="CheckBox_Checked_RunSequential" Unchecked="CheckBox_Unchecked_RunSequential" BorderThickness="0"/>
         <CheckBox x:Name="logarithmicXAxisCheckBox" Content="Logarithmic X Axis" HorizontalAlignment="Right" Margin="0,0,515,72" VerticalAlignment="Bottom" Checked="CheckBox_Checked_LogarithmicXAxis" Unchecked="CheckBox_Unchecked_LogarithmicXAxis" BorderThickness="0" IsChecked="False"/>
     </Grid>
+    
 </Window>

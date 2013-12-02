@@ -2,15 +2,15 @@
 
 namespace C5.Performance.Wpf.Benchmarks
 {
-    public class IbsAvlIntervalSetsBenchmarker : Benchmarkable
+    public class IbsAvlNewIntervalSetsBenchmarker : Benchmarkable
     {
-        private IntervalBinarySearchTreeAvlOldIntervalSet<IInterval<int>, int> _collection;
+        private IntervalBinarySearchTreeAvl<IInterval<int>, int> _collection;
         private IInterval<int>[] _intervals;
 
         public override void CollectionSetup()
         {
             _intervals = Tests.intervals.BenchmarkTestCases.DataSetAOpen(CollectionSize);
-            _collection = new IntervalBinarySearchTreeAvlOldIntervalSet<IInterval<int>, int>();
+            _collection = new IntervalBinarySearchTreeAvl<IInterval<int>, int>();
             ItemsArray = SearchAndSort.FillIntArray(CollectionSize);
             SearchAndSort.Shuffle(ItemsArray);
         }
@@ -26,7 +26,7 @@ namespace C5.Performance.Wpf.Benchmarks
 
         public override string BenchMarkName()
         {
-            return "IBS Interval Set Old";
+            return "IBS Interval Set New";
         }
     }
 }

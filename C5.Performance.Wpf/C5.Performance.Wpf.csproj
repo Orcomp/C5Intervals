@@ -162,6 +162,7 @@
     <Compile Include="Benchmarks\DITSearchIterativeBenchmark.cs" />
     <Compile Include="Benchmarks\DITSearchRecursiveBenchmark.cs" />
     <Compile Include="Benchmarks\DITTrainSearchSelectiveBenchmark.cs" />
+    <Compile Include="Benchmarks\IbsAvlNewIntervalSetsBenchmarker.cs" />
     <Compile Include="Benchmarks\IbsAvlIntervalSetsBenchmarker.cs" />
     <Compile Include="Benchmarks\IBSSearchBenchmark.cs" />
     <Compile Include="Benchmarks\IBSTrainRemoveBenchmark.cs" />

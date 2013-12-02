@@ -3,7 +3,6 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using C5.Performance.Wpf.Benchmarks;
-using C5.UserGuideExamples.intervals;
 using Microsoft.Win32;
 
 namespace C5.Performance.Wpf
@@ -14,7 +13,7 @@ namespace C5.Performance.Wpf
         #region Benchmark setup
         // Parameters for running the benchmarks
         private const int MinCollectionSize = 100;
-        private const int MaxCollectionSize = 102401;//TrainUtilities.TrainSetACount;
+        private const int MaxCollectionSize = 409601;//TrainUtilities.TrainSetACount;
         private const int CollectionMultiplier = 2;
         private const int StandardRepeats = 10;
         private const double MaxExecutionTimeInSeconds = 0.25;
@@ -35,6 +34,7 @@ namespace C5.Performance.Wpf
                 return new Benchmarkable[]
                 {
                     new IbsAvlIntervalSetsBenchmarker(), 
+                    new IbsAvlNewIntervalSetsBenchmarker(), 
                 };
             }
         }
@@ -136,6 +136,14 @@ namespace C5.Performance.Wpf
             var path = dlg.FileName;
             _plotter.ExportPdf(path, ActualWidth, ActualHeight);
         }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            base.OnClosed(e);
+
+            Application.Current.Shutdown();
+        }
+
         #endregion
 
         #region UI Utils
