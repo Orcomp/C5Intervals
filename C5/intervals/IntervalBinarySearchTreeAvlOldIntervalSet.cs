@@ -8,13 +8,13 @@ using QuickGraph.Graphviz.Dot;
 
 namespace C5.intervals
 {
+    // TODO: Document reference equality duplicates
     /// <summary>
     /// An implementation of the Interval Binary Search Tree as described by Hanson et. al in "The IBS-Tree: A Data Structure for Finding All Intervals That Overlap a Point" using an AVL tree balancing scheme.
     /// </summary>
-    /// <remarks>The collection will not contain duplicate intervals based on reference equality. Two intervals in the collection are allowed to contain the same interval data, but the collection can only contain an object once.</remarks>
     /// <typeparam name="I">The interval type.</typeparam>
     /// <typeparam name="T">The interval endpoint type.</typeparam>
-    public class IntervalBinarySearchTreeAvlOldIntervalSet<I, T> : CollectionValueBase<I>, IIntervalCollection<I, T>
+    public class IntervalBinarySearchTreeAvl<I, T> : CollectionValueBase<I>, IIntervalCollection<I, T>
         where I : IInterval<T>
         where T : IComparable<T>
     {
@@ -22,9 +22,7 @@ namespace C5.intervals
 
         private Node _root;
         private int _count;
-
         private static readonly IEqualityComparer<I> Comparer = ComparerFactory<I>.CreateEqualityComparer((x, y) => ReferenceEquals(x, y), x => x.GetHashCode());
-        private IInterval<T> _span;
 
         #endregion
 
@@ -35,161 +33,106 @@ namespace C5.intervals
         private void invariants()
         {
             // Check the balance invariant holds.
-            Contract.Invariant(contractHelperConfirmBalance(_root));
-
-            // Check nodes are sorted
-            Contract.Invariant(contractHelperCheckNodesAreSorted(_root));
-
-            // Check that the MNO variables are correct for all nodes
-            Contract.Invariant(contractHelperCheckMnoAndIntervalsEndingInNodeForEachNode(_root));
+            Contract.Invariant(confirmBalance());
 
             // Check that the IBS tree invariants from the Hanson article holds.
-            Contract.Invariant(Contract.ForAll(nodes(_root), contractHelperCheckIbsInvariants));
-
-            // Check that the intervals are correctly placed
-            Contract.Invariant(contractHelperConfirmIntervalPlacement(_root));
-        }
-
-        [Pure]
-        private static bool contractHelperCheckNodesAreSorted(Node root)
-        {
-            return nodes(root).IsSorted();
-        }
-
-        [Pure]
-        private static bool contractHelperCheckMnoAndIntervalsEndingInNodeForEachNode(Node root)
-        {
-            if (root != null && root.Sum != 0)
-                return false;
-
-            foreach (var keyValuePair in contractHelperGetIntervalsByEndpoint(root))
-            {
-                var key = keyValuePair.Key;
-                var intervals = keyValuePair.Value;
-
-                var deltaAt = 0;
-                var deltaAfter = 0;
-
-                foreach (var interval in intervals)
-                {
-                    if (interval.Low.CompareTo(key) == 0)
-                    {
-                        if (interval.LowIncluded)
-                            deltaAt++;
-                        else
-                            deltaAfter++;
-                    }
-
-                    if (interval.High.CompareTo(key) == 0)
-                    {
-                        if (interval.HighIncluded)
-                            deltaAfter--;
-                        else
-                            deltaAt--;
-                    }
-                }
-
-                var node = contractHelperFindNode(root, key);
-
-                // Check DeltaAt and DeltaAfter
-                if (node.DeltaAt != deltaAt || node.DeltaAfter != deltaAfter)
-                    return false;
-
-                // Check Sum and Max
-                if (!contractHelperCheckMno(node))
-                    return false;
-
-                // Check IntervalsEndingInNode
-                if (!Contract.ForAll(node.IntervalsEndingInNode, intervals.Contains) && node.IntervalsEndingInNode.Count() != intervals.Count)
-                    return false;
-            }
-
-            return true;
+            Contract.Invariant(Contract.ForAll(getNodeEnumerator(_root), checkIbsInvariants));
         }
 
         /// <summary>
-        /// Find the node containing the search key.
+        /// Checks that the height of the tree is balanced.
         /// </summary>
-        /// <param name="node">The root node which subtree should be searched.</param>
-        /// <param name="key">The key being searched.</param>
-        /// <returns>The node containing the key if it exists, otherwise null.</returns>
+        /// <returns>True if the tree is balanced, else false.</returns>
         [Pure]
-        private static Node contractHelperFindNode(Node node, T key)
+        private bool confirmBalance()
         {
-            Contract.Requires(node != null);
-            Contract.Ensures(Contract.Result<Node>() != null);
+            var result = true;
+            height(_root, ref result);
+            return result;
+        }
 
-            while (node != null)
-            {
-                var compare = key.CompareTo(node.Key);
-
-                if (compare > 0)
-                    node = node.Right;
-                else if (compare < 0)
-                    node = node.Left;
-                else
-                    break;
-            }
-
-            return node;
+        /// <summary>
+        /// Get the height of the tree.
+        /// </summary>
+        /// <param name="node">The node you wish to check the height on.</param>
+        /// <param name="result">Reference to a bool that will be set to false if an in-balance is discovered.</param>
+        /// <returns>Height of the tree.</returns>
+        [Pure]
+        private static int height(Node node, ref bool result)
+        {
+            if (node == null)
+                return 0;
+            var heightLeft = height(node.Left, ref result);
+            var heightRight = height(node.Right, ref result);
+            if (node.Balance != heightRight - heightLeft)
+                result = false;
+            return Math.Max(heightLeft, heightRight) + 1;
         }
 
         [Pure]
-        private static IEnumerable<KeyValuePair<T, IntervalSet>> contractHelperGetIntervalsByEndpoint(Node root)
+        private static IEnumerable<Node> getNodeEnumerator(Node root)
         {
-            var dictionary = new TreeDictionary<T, IntervalSet>();
+            if (root == null)
+                yield break;
 
-            foreach (var interval in intervals(root))
-            {
-                // Make sure the sets exist
-                if (!dictionary.Contains(interval.Low))
-                    dictionary.Add(interval.Low, new IntervalSet());
-                if (!dictionary.Contains(interval.High))
-                    dictionary.Add(interval.High, new IntervalSet());
+            foreach (var node in getNodeEnumerator(root.Left))
+                yield return node;
 
-                // Add interval for low and high
-                dictionary[interval.Low].Add(interval);
-                dictionary[interval.High].Add(interval);
-            }
+            yield return root;
 
-            return dictionary;
+            foreach (var node in getNodeEnumerator(root.Right))
+                yield return node;
         }
 
-        [Pure]
-        private static bool contractHelperCheckMno(Node node)
+        /// <summary>
+        /// Find the ancestor of a node.
+        /// </summary>
+        /// <param name="child">The node you wish to find an ancestor for.</param>
+        /// <returns>The ancestor of the <paramref name="child"/> node.</returns>
+        private Node findAncestor(Node child)
         {
-            Contract.Requires(node != null);
+            Contract.Requires(child != null);
+            Contract.Requires(_root != null);
 
-            // Check sum
-            var sum = (node.Left != null ? node.Left.Sum : 0) + node.DeltaAt + node.DeltaAfter +
-                      (node.Right != null ? node.Right.Sum : 0);
+            var searchRight = child.Key.CompareTo(_root.Key) > 0;
+            return findAncestor(_root, child, searchRight);
+        }
 
-            if (node.Sum != sum)
-                return false;
+        /// <summary>
+        /// Find the ancestor of a node.
+        /// </summary>
+        /// <param name="root">The root to start the search from.</param>
+        /// <param name="child">The node you wish to find an ancestor for.</param>
+        /// <param name="searchRight">Indicate which searchRight to search in the tree. Right == true, Left == false.</param>
+        /// <param name="currentAncestor">Internal parameter to keep track of the ancestor while searching.</param>
+        /// <returns>The ancestor of the <paramref name="child"/> node.</returns>
+        private static Node findAncestor(Node root, Node child, bool searchRight, Node currentAncestor = null)
+        {
+            Contract.Requires(root != null);
+            Contract.Requires(child != null);
 
-            // Check max
-            var max = Int32.MinValue;
+            var compare = child.Key.CompareTo(root.Key);
 
-            sum = node.Left != null ? node.Left.Max : 0;
-            if (sum > max)
-                max = sum;
+            // Search in the right subtree if the child's key value is larger than the root's key value.
+            if (compare > 0)
+            {
+                // Update ancestor if we are searching for an ancestor in the right sub tree.
+                if (searchRight)
+                    currentAncestor = root;
 
-            sum = (node.Left != null ? node.Left.Sum : 0) + node.DeltaAt;
-            if (sum > max)
-                max = sum;
+                return findAncestor(root.Right, child, searchRight, currentAncestor);
+            }
+            // Search in the left subtree if the child's key value is smaller than the root's key value.
+            if (compare < 0)
+            {
+                // Update ancestor if we are searching for an ancestor in the left sub tree.
+                if (!searchRight)
+                    currentAncestor = root;
 
-            sum = (node.Left != null ? node.Left.Sum : 0) + node.DeltaAt + node.DeltaAfter;
-            if (sum > max)
-                max = sum;
+                return findAncestor(root.Left, child, searchRight, currentAncestor);
+            }
 
-            sum = (node.Left != null ? node.Left.Sum : 0) + node.DeltaAt + node.DeltaAfter + (node.Right != null ? node.Right.Max : 0);
-            if (sum > max)
-                max = sum;
-
-            if (node.Max != max)
-                return false;
-
-            return true;
+            return currentAncestor;
         }
 
         /// <summary>
@@ -200,259 +143,118 @@ namespace C5.intervals
         /// <param name="v">The node to check (It only makes sense to check all the nodes of the tree, so call this enumerating the entire tree)</param>
         /// <returns>Returns true if all the invariants hold and false if one of them does not hold.</returns>
         [Pure]
-        private bool contractHelperCheckIbsInvariants(Node v)
+        private bool checkIbsInvariants(Node v)
         {
             Contract.Requires(v != null);
+            Contract.Requires(_root != null);
 
-            Node rightUp = null;
-            Node leftUp = null;
+            // Find v's ancestor.
+            var u = findAncestor(v);
 
-            // Find j intervals and left and right parent
-            var js = contractHelperFindJs(v, ref leftUp, ref rightUp);
+            // If v doesn't have an ancestor return.
+            if (u == null)
+                return true;
 
-            // Interval represented by Less
-            var greaterInterval = rightUp != null ? new IntervalBase<T>(v.Key, rightUp.Key, IntervalType.Open) : null;
-            // Interval represented by Equal
-            var equalInterval = new IntervalBase<T>(v.Key);
-            // Interval represented by Greater
-            var lessInterval = leftUp != null ? new IntervalBase<T>(leftUp.Key, v.Key, IntervalType.Open) : null;
+            Contract.Assert(u != v);
 
+            // Set this to true if we are searching for an ancestor in the left sub tree.
+            var leftAncestor = u.Key.CompareTo(v.Key) < 0;
 
-            // Check containment invariant
-            if (v.Less != null && lessInterval != null)
-                if (v.Less.Any(i => !i.Contains(lessInterval)))
-                    return false;
+            // Create the interval (U,V).
+            var intervalUV = leftAncestor ? new IntervalBase<T>(u.Key, v.Key, false) : new IntervalBase<T>(v.Key, u.Key, false);
 
-            if (v.Greater != null && greaterInterval != null)
-                if (v.Greater.Any(i => !i.Contains(greaterInterval)))
-                    return false;
+            // Get the "<" or ">" set depending of the direction we are searching.
+            var set = leftAncestor ? v.Less : v.Greater;
 
-            if (v.Equal != null)
-                if (v.Equal.Any(i => !i.Contains(equalInterval)))
-                    return false;
+            // Containment invariant.
+            if (!set.All(i => i.Contains(intervalUV)))
+                return false;
 
+            // "=" Invariant part 1.
+            if (v.Equal.Exists(i => !i.Overlaps(v.Key)))
+                return false;
 
-            // Check maximum invariant
-            foreach (var j in js)
+            // Maximality and "=" invariant while loop.
+            var child = u; // Start by searching from the current ancestor.
+            Node ancestor;
+            // As long as the child has an ancestor check the invariants.
+            while ((ancestor = findAncestor(child)) != null)
             {
-                // Check containment invariant for both Less and Greater
-                if (v.Less != null && lessInterval != null)
-                    // If there is an inteval in Less that contains J the invariant doesn't hold
-                    if (v.Less.Any(i => i.Contains(j)))
-                        return false;
+                var compare = child.Key.CompareTo(ancestor.Key);
+                var j = compare < 0 ?
+                    new IntervalBase<T>(child.Key, ancestor.Key, false) :
+                    new IntervalBase<T>(ancestor.Key, child.Key, false);
 
-                if (v.Greater != null && greaterInterval != null)
-                    // If there is an inteval in Greater that contains J the invariant doesn't hold
-                    if (v.Greater.Any(i => i.Contains(j)))
-                        return false;
-
-                if (v.Equal != null)
-                    // If there is an inteval in Equal that contains J the invariant doesn't hold
-                    if (v.Equal.Any(i => i.Contains(j)))
-                        return false;
-            }
-
-            return true;
-        }
-
-        [Pure]
-        private IEnumerable<IInterval<T>> contractHelperFindJs(Node v, ref Node leftUp, ref Node rightUp)
-        {
-            Contract.Requires(v != null);
-
-            var set = new HashSet<IInterval<T>>();
-            var root = _root;
-
-            while (root != null)
-            {
-                var compare = v.CompareTo(root);
-
-                if (compare > 0)
-                {
-                    // Add a new j interval to the set
-                    if (v.CompareTo(root.Right) < 0)
-                        set.Add(new IntervalBase<T>(root.Key, root.Right.Key, IntervalType.Open));
-                    else if (rightUp != null)
-                        set.Add(new IntervalBase<T>(root.Key, rightUp.Key, IntervalType.Open));
-
-                    // Update left parent
-                    leftUp = root;
-
-                    root = root.Right;
-                }
-                else if (compare < 0)
-                {
-                    // Add a new j interval to the set
-                    if (v.CompareTo(root.Left) > 0)
-                        set.Add(new IntervalBase<T>(root.Left.Key, root.Key, IntervalType.Open));
-                    else if (leftUp != null)
-                        set.Add(new IntervalBase<T>(leftUp.Key, root.Key, IntervalType.Open));
-
-                    // Update right parent
-                    rightUp = root;
-
-                    root = root.Left;
-                }
-                else
-                    // Stop the loop when we find the node
-                    break;
-            }
-
-            return set;
-        }
-
-        /// <summary>
-        /// Checks that the contractHelperHeight of the tree is balanced.
-        /// </summary>
-        /// <returns>True if the tree is balanced, else false.</returns>
-        [Pure]
-        private static bool contractHelperConfirmBalance(Node root)
-        {
-            var result = true;
-            contractHelperHeight(root, ref result);
-            return result;
-        }
-
-        /// <summary>
-        /// Get the contractHelperHeight of the tree.
-        /// </summary>
-        /// <param name="node">The node you wish to check the contractHelperHeight on.</param>
-        /// <param name="result">Reference to a bool that will be set to false if an in-balance is discovered.</param>
-        /// <returns>Height of the tree.</returns>
-        [Pure]
-        private static int contractHelperHeight(Node node, ref bool result)
-        {
-            if (node == null)
-                return 0;
-
-            var heightLeft = contractHelperHeight(node.Left, ref result);
-            var heightRight = contractHelperHeight(node.Right, ref result);
-
-            if (node.Balance != heightRight - heightLeft)
-                result = false;
-
-            return Math.Max(heightLeft, heightRight) + 1;
-        }
-
-        [Pure]
-        private bool contractHelperConfirmIntervalPlacement(Node root)
-        {
-            foreach (var interval in this)
-            {
-                if (!contractHelperConfirmLowPlacement(interval, root))
+                // Maximality invariant.
+                if (set.Exists(i => i.Contains(j) && j.Contains(intervalUV)))
                     return false;
-                if (!contractHelperConfirmHighPlacement(interval, root))
+
+                // "=" Invariant part 2.
+                var ancestorSet = compare < 0 ? ancestor.Less : ancestor.Greater;
+                if (v.Equal.Exists(i => ancestorSet.Exists(i2 => i.Equals(i2))))
                     return false;
+
+                // Set the child to the current ancestor and search upwards.
+                child = ancestor;
             }
             return true;
         }
-
-        [Pure]
-        private static bool contractHelperConfirmLowPlacement(I interval, Node root, Node rightUp = null, bool result = true)
-        {
-            var compare = root.Key.CompareTo(interval.Low);
-            if (compare == 0)
-            {
-                if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                    result &= root.Greater.Contains(interval);
-                if (interval.LowIncluded)
-                    result &= root.Equal.Contains(interval);
-            }
-            else if (compare < 0)
-                return contractHelperConfirmLowPlacement(interval, root.Right, rightUp, result);
-            else if (compare > 0)
-            {
-                if (root.Key.CompareTo(interval.High) < 0)
-                    result &= root.Equal.Contains(interval);
-                if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                    result &= root.Greater.Contains(interval);
-                return contractHelperConfirmLowPlacement(interval, root.Left, root, result);
-            }
-            return result;
-        }
-
-        [Pure]
-        private static bool contractHelperConfirmHighPlacement(I interval, Node root, Node leftUp = null, bool result = true)
-        {
-            var compare = root.Key.CompareTo(interval.High);
-            if (compare == 0)
-            {
-                if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                    result &= root.Less.Contains(interval);
-                if (interval.HighIncluded)
-                    result &= root.Equal.Contains(interval);
-            }
-            else if (compare > 0)
-                return contractHelperConfirmHighPlacement(interval, root.Left, leftUp, result);
-            else if (compare < 0)
-            {
-                if (root.Key.CompareTo(interval.Low) > 0)
-                    result &= root.Equal.Contains(interval);
-                if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                    result &= root.Less.Contains(interval);
-                return contractHelperConfirmHighPlacement(interval, root.Right, root, result);
-            }
-            return result;
-        }
-
         #endregion
 
         #region Inner Classes
 
-        class Node : IComparable<Node>
+        class Node
         {
-            private IntervalSet _less;
-            private IntervalSet _equal;
-            private IntervalSet _greater;
-
             #region Code Contracts
 
             [ContractInvariantMethod]
             private void invariant()
             {
-                // The key cannot be null
-                Contract.Invariant(Key != null);
-                // Balance never has an absolute value greater than 2
-                Contract.Invariant(-2 <= Balance && Balance <= 2);
+                Contract.Invariant(!ReferenceEquals(Key, null));
+                Contract.Invariant(IntervalsEndingInNode >= 0);
             }
 
             #endregion
 
-            #region Properties
+            #region Fields
 
             public T Key { get; private set; }
+
+            private IntervalSet _less;
+            private IntervalSet _equal;
+            private IntervalSet _greater;
 
             public Node Left { get; internal set; }
             public Node Right { get; internal set; }
 
+            // The number of intervals with an endpoint in one of the interval sets in the node
+            public int IntervalsEndingInNode;
+
             // Fields for Maximum Number of Overlaps
             public int DeltaAt { get; internal set; }
             public int DeltaAfter { get; internal set; }
-            public int Sum { get; private set; }
+            private int Sum { get; set; }
             public int Max { get; private set; }
 
             // Balance - between -2 and +2
             public sbyte Balance { get; internal set; }
 
-            // Used for printing
-            public bool Dummy { get; private set; }
+            #endregion
 
-            public IntervalSet Less {
-                get { return _less ?? (_less = new IntervalSet());}
-                set { _less = value;  }
+            #region Properties
+
+            public IntervalSet Less
+            {
+                get { return _less ?? (_less = new IntervalSet()); }
             }
             public IntervalSet Equal
             {
                 get { return _equal ?? (_equal = new IntervalSet()); }
-                set { _equal = value; }
             }
             public IntervalSet Greater
             {
                 get { return _greater ?? (_greater = new IntervalSet()); }
-                set { _greater = value; }
             }
-
-            public IntervalSet IntervalsEndingInNode { get; private set; }
 
             #endregion
 
@@ -460,35 +262,30 @@ namespace C5.intervals
 
             public Node(T key)
             {
-                Contract.Requires(key != null);
-
                 Key = key;
-                IntervalsEndingInNode = new IntervalSet();
-            }
-
-            public Node()
-            {
-                Dummy = true;
             }
 
             #endregion
 
             #region Public Methods
 
-            [Pure]
-            public IEnumerable<I> Intervals
+            public IEnumerable<I> GetIntervalsEndingInNode()
             {
-                get
-                {
-                        foreach (var interval in Less)
-                            yield return interval;
+                Contract.Ensures(Contract.Result<IEnumerable<I>>().All(i => i.HasEndpoint(Key)));
 
-                        foreach (var interval in Equal)
-                            yield return interval;
+                var set = new IntervalSet();
 
-                        foreach (var interval in Greater)
-                            yield return interval;
-                }
+                if (_less != null)
+                    foreach (var interval in _less.Where(interval => interval.HasEndpoint(Key) && set.Add(interval)))
+                        yield return interval;
+
+                if (_equal != null)
+                    foreach (var interval in _equal.Where(interval => interval.HasEndpoint(Key) && set.Add(interval)))
+                        yield return interval;
+
+                if (_greater != null)
+                    foreach (var interval in _greater.Where(interval => interval.HasEndpoint(Key) && set.Add(interval)))
+                        yield return interval;
             }
 
             /// <summary>
@@ -529,30 +326,18 @@ namespace C5.intervals
                 return oldMax != Max || oldSum != Sum;
             }
 
-            public int CompareTo(Node other)
-            {
-                return Key.CompareTo(other.Key);
-            }
-
             public override string ToString()
             {
                 return Key.ToString();
             }
 
-            public void Swap(Node successor)
+            public void SwapKeys(Node successor)
             {
                 Contract.Requires(successor != null);
 
                 var tmp = Key;
                 Key = successor.Key;
                 successor.Key = tmp;
-
-                IntervalsEndingInNode = successor.IntervalsEndingInNode;
-                DeltaAfter = successor.DeltaAfter;
-                DeltaAt = successor.DeltaAt;
-
-                // Reset all values in successor
-                successor.DeltaAt = successor.DeltaAfter = 0;
             }
 
             #endregion
@@ -561,10 +346,10 @@ namespace C5.intervals
 
         private sealed class IntervalSet : HashSet<I>
         {
-
-            public IntervalSet(IEnumerable<I> set)
+            private IntervalSet(IEnumerable<I> intervals)
+                : base(Comparer)
             {
-                AddAll(set);
+                AddAll(intervals);
             }
 
             public IntervalSet()
@@ -587,16 +372,15 @@ namespace C5.intervals
                 Contract.Requires(s1 != null);
                 Contract.Requires(s2 != null);
 
-                var res = new IntervalSet();
-                foreach (var interval in s1.Where(interval => !s2.Contains(interval)))
-                    res.Add(interval);
+                var res = new IntervalSet(s1);
+                res.RemoveAll(s2);
                 return res;
             }
         }
 
         #endregion
 
-        #region AVL Tree Methods
+        #region AVL tree methods
 
         private static Node rotateForAdd(Node root, ref bool updateBalance)
         {
@@ -633,8 +417,8 @@ namespace C5.intervals
                             root = rotateRight(root);
 
                             // root.Balance is either -1, 0, or +1
-                            root.Left.Balance = (sbyte) (root.Balance == +1 ? -1 : 0);
-                            root.Right.Balance = (sbyte) (root.Balance == -1 ? +1 : 0);
+                            root.Left.Balance = (sbyte)(root.Balance == +1 ? -1 : 0);
+                            root.Right.Balance = (sbyte)(root.Balance == -1 ? +1 : 0);
                             root.Balance = 0;
                             break;
                     }
@@ -657,8 +441,8 @@ namespace C5.intervals
                             root = rotateLeft(root);
 
                             // root.Balance is either -1, 0, or +1
-                            root.Left.Balance = (sbyte) (root.Balance == +1 ? -1 : 0);
-                            root.Right.Balance = (sbyte) (root.Balance == -1 ? +1 : 0);
+                            root.Left.Balance = (sbyte)(root.Balance == +1 ? -1 : 0);
+                            root.Right.Balance = (sbyte)(root.Balance == -1 ? +1 : 0);
                             root.Balance = 0;
                             break;
                     }
@@ -713,8 +497,8 @@ namespace C5.intervals
                             root = rotateRight(root);
 
                             // root.Balance is either -1, 0, or +1
-                            root.Left.Balance = (sbyte) ((root.Balance == +1) ? -1 : 0);
-                            root.Right.Balance = (sbyte) ((root.Balance == -1) ? +1 : 0);
+                            root.Left.Balance = (sbyte)((root.Balance == +1) ? -1 : 0);
+                            root.Right.Balance = (sbyte)((root.Balance == -1) ? +1 : 0);
                             root.Balance = 0;
                             break;
                     }
@@ -743,8 +527,8 @@ namespace C5.intervals
                             root = rotateLeft(root);
 
                             // root.Balance is either -1, 0, or +1
-                            root.Left.Balance = (sbyte) (root.Balance == +1 ? -1 : 0);
-                            root.Right.Balance = (sbyte) (root.Balance == -1 ? +1 : 0);
+                            root.Left.Balance = (sbyte)((root.Balance == +1) ? -1 : 0);
+                            root.Right.Balance = (sbyte)((root.Balance == -1) ? +1 : 0);
                             root.Balance = 0;
                             break;
                     }
@@ -764,57 +548,20 @@ namespace C5.intervals
             root.Left = node.Right;
             node.Right = root;
 
-                // node.Less = node.Less U root.Less
-                if (node.Less == null)
-                    node.Less = new IntervalSet(root.Less);
-                else
-                    node.Less.AddAll(root.Less);
 
-                // node.Equal = node.Less U root.Less
-                if (node.Equal == null)
-                    node.Equal = new IntervalSet(root.Less);
-                else
-                    node.Equal.AddAll(root.Less);
+            // 1
+            node.Less.AddAll(root.Less);
+            node.Equal.AddAll(root.Less);
 
-                var rootGreaterIsEmpty = root.Greater == null || root.Greater.IsEmpty;
-                // unique = node.Greater - root.Greater
-                var uniqueInNodeGreater = rootGreaterIsEmpty
-                    ? node.Greater
-                    : node.Greater - root.Greater;
+            // 2
+            var between = node.Greater - root.Greater;
+            root.Less.AddAll(between);
+            node.Greater.RemoveAll(between);
 
-                // root.Less = root.Less U unique
-                if (root.Less != null)
-                    root.Less.AddAll(uniqueInNodeGreater);
-                else
-                {
-                    // If root.Greater is all unique
-                    if (uniqueInNodeGreater.Count == node.Greater.Count)
-                    {
-                        // Swap references
-                        root.Less = node.Greater;
-                        node.Greater = null;
-                    }
-                    else
-                    {
-                        // If root.Greater is empty, uniqueInNodeGreater is a pointer to the set node.Greater
-                        // We don't want root.Less and node.Greater to be the same IntervalSet object, so we duplicate it
-                        root.Less = rootGreaterIsEmpty ? new IntervalSet(uniqueInNodeGreater) : uniqueInNodeGreater;
-                    }
-                }
+            // 3
+            root.Equal.RemoveAll(node.Greater);
+            root.Greater.RemoveAll(node.Greater);
 
-                // node.Greater = node.Greater - unique
-                if (rootGreaterIsEmpty)
-                    node.Greater = null;
-                else if (node.Greater != null)
-                    node.Greater.RemoveAll(uniqueInNodeGreater);
-
-                // root.Greater = root.Greater - node.Greater
-                if (root.Greater != null && !root.Greater.IsEmpty)
-                    root.Greater.RemoveAll(node.Greater);
-
-                // root.Equal = root.Equal - node.Greater
-                if (root.Equal != null && !root.Equal.IsEmpty)
-                    root.Equal.RemoveAll(node.Greater);
 
             // Update MNO
             root.UpdateMaximumOverlap();
@@ -833,57 +580,20 @@ namespace C5.intervals
             root.Right = node.Left;
             node.Left = root;
 
-                // node.Greater = node.Greater U root.Greater
-                if (node.Greater == null)
-                    node.Greater = new IntervalSet(root.Greater);
-                else
-                    node.Greater.AddAll(root.Greater);
+            // TODO: Look into if these operations can be optimised
+            // 1
+            node.Greater.AddAll(root.Greater);
+            node.Equal.AddAll(root.Greater);
 
-                // node.Equal = node.Greater U root.Greater
-                if (node.Equal == null)
-                    node.Equal = new IntervalSet(root.Greater);
-                else
-                    node.Equal.AddAll(root.Greater);
+            // 2
+            var between = node.Less - root.Less;
+            root.Greater.AddAll(between);
+            node.Less.RemoveAll(between);
 
-                var rootLessIsEmpty = root.Less == null || root.Less.IsEmpty;
-                // unique = node.Less - root.Less
-                var uniqueInNodeLess = rootLessIsEmpty
-                    ? node.Less
-                    : node.Less - root.Less;
+            // 3
+            root.Equal.RemoveAll(node.Less);
+            root.Less.RemoveAll(node.Less);
 
-                // root.Greater = root.Greater U unique
-                if (root.Greater != null)
-                    root.Greater.AddAll(uniqueInNodeLess);
-                else
-                {
-                    // If root.Less is all unique
-                    if (uniqueInNodeLess.Count == node.Less.Count)
-                    {
-                        // Swap references
-                        root.Greater = node.Less;
-                        node.Less.Clear();
-                    }
-                    else
-                    {
-                        // If root.Less is empty, uniqueInNodeLess is a pointer to the set node.Less
-                        // We don't want root.Greater and node.Less to be the same IntervalSet object, so we duplicate it
-                        root.Greater = rootLessIsEmpty ? new IntervalSet(uniqueInNodeLess) : uniqueInNodeLess;
-                    }
-                }
-
-                // node.Less = node.Less - unique
-                if (rootLessIsEmpty)
-                    node.Less.Clear();
-                else if (node.Less != null)
-                    node.Less.RemoveAll(uniqueInNodeLess);
-
-
-                // root.Less = root.Less - node.Less
-                    root.Less.RemoveAll(node.Less);
-
-                // root.Equal = root.Equal - node.Less
-                    root.Equal.RemoveAll(node.Less);
-            
 
             // Update MNO
             root.UpdateMaximumOverlap();
@@ -900,73 +610,20 @@ namespace C5.intervals
         /// Create an Interval Binary Search Tree with a collection of intervals.
         /// </summary>
         /// <param name="intervals">The collection of intervals.</param>
-        public IntervalBinarySearchTreeAvlOldIntervalSet(IEnumerable<I> intervals)
+        public IntervalBinarySearchTreeAvl(IEnumerable<I> intervals)
         {
             Contract.Requires(intervals != null);
 
-            var intervalArray = intervals as I[] ?? intervals.ToArray();
+            // TODO: Pre-generate balanced tree based on endpoints and insert intervals afterwards
 
-            preconstructNodeStructure(intervalArray);
-
-            foreach (var interval in intervalArray)
+            foreach (var interval in intervals)
                 Add(interval);
-        }
-
-        private void preconstructNodeStructure(I[] intervals)
-        {
-
-            var intervalCount = intervals.Count();
-
-            // Save all endpoints to array
-            var endpoints = new T[intervalCount * 2];
-            for (var i = 0; i < intervalCount; i++)
-            {
-                var interval = intervals[i];
-
-                endpoints[i * 2] = interval.Low;
-                endpoints[i * 2 + 1] = interval.High;
-            }
-
-            // Sort endpoints
-            Sorting.IntroSort(endpoints);
-
-            // Remove duplicate endpoints
-            var uniqueEndpoints = new T[intervalCount * 2];
-            var endpointCount = 0;
-
-            foreach (var endpoint in endpoints)
-                if (endpointCount == 0 || uniqueEndpoints[endpointCount - 1].CompareTo(endpoint) < 0)
-                    uniqueEndpoints[endpointCount++] = endpoint;
-
-            var height = 0;
-            _root = createNodes(ref uniqueEndpoints, 0, endpointCount - 1, ref height);
-        }
-
-        private Node createNodes(ref T[] endpoints, int lower, int upper, ref int height)
-        {
-            if (lower > upper)
-                return null;
-
-            var mid = lower + (upper - lower >> 1);
-
-            var node = new Node(endpoints[mid]);
-            var leftHeight = 0;
-            var rightHeight = 0;
-
-            node.Left = createNodes(ref endpoints, lower, mid - 1, ref leftHeight);
-            node.Right = createNodes(ref endpoints, mid + 1, upper, ref rightHeight);
-
-            node.Balance = (sbyte) (rightHeight - leftHeight);
-
-            height = Math.Max(leftHeight, rightHeight) + 1;
-
-            return node;
         }
 
         /// <summary>
         /// Create empty Interval Binary Search Tree.
         /// </summary>
-        public IntervalBinarySearchTreeAvlOldIntervalSet()
+        public IntervalBinarySearchTreeAvl()
         {
         }
 
@@ -979,9 +636,8 @@ namespace C5.intervals
         {
             get
             {
-                Contract.Ensures(Contract.Result<bool>() == (_count == 0));
                 Contract.Ensures(Contract.Result<bool>() == (_root == null));
-                return _count == 0;
+                return _root == null;
             }
         }
 
@@ -1001,10 +657,17 @@ namespace C5.intervals
         /// <inheritdoc/>
         public override I Choose()
         {
-            if (IsEmpty)
+            if (_root == null)
                 throw new NoSuchItemException();
 
-            return _root.IntervalsEndingInNode.Choose();
+            // At least one of Less, Equal, or Greater will contain at least one interval
+            if (!_root.Less.IsEmpty)
+                return _root.Less.Choose();
+
+            if (!_root.Equal.IsEmpty)
+                return _root.Equal.Choose();
+
+            return _root.Greater.Choose();
         }
 
         #endregion
@@ -1016,32 +679,56 @@ namespace C5.intervals
         {
             var set = new IntervalSet();
 
-            return intervals(_root).Where(set.Add).GetEnumerator();
+            var enumerator = getEnumerator(_root);
+            while (enumerator.MoveNext())
+                if (set.Add(enumerator.Current))
+                    yield return enumerator.Current;
         }
 
-        /// <summary>
-        /// Enumerates nodes in the tree of root and returns each interval in each interval set.
-        /// </summary>
-        /// <param name="root">The root of the subtree to traverse</param>
-        /// <remarks>Is very likely to contain duplicates, as intervals are returned without any filtering!</remarks>
-        /// <returns>An enumerable of intervals</returns>
-        private static IEnumerable<I> intervals(Node root)
+        private static IEnumerator<I> getEnumerator(Node root)
         {
-            return nodes(root).SelectMany(node => node.Intervals);
-        }
+            // Just return if tree is empty
+            if (root == null) yield break;
 
-        [Pure]
-        private static IEnumerable<Node> nodes(Node root)
-        {
-            while (root != null)
+            // Recursively retrieve intervals in left subtree
+            if (root.Left != null)
             {
-                foreach (var node in nodes(root.Left))
-                    yield return node;
+                var child = getEnumerator(root.Left);
 
-                yield return root;
-
-                root = root.Right;
+                while (child.MoveNext())
+                    yield return child.Current;
             }
+
+            // Go through all intervals in the node
+            foreach (var interval in root.Less)
+                yield return interval;
+            foreach (var interval in root.Equal)
+                yield return interval;
+            foreach (var interval in root.Greater)
+                yield return interval;
+
+            // Recursively retrieve intervals in right subtree
+            if (root.Right != null)
+            {
+                var child = getEnumerator(root.Right);
+
+                while (child.MoveNext())
+                    yield return child.Current;
+            }
+        }
+
+        private static IEnumerable<Node> nodeEnumerator(Node root)
+        {
+            if (root == null)
+                yield break;
+
+            foreach (var node in nodeEnumerator(root.Left))
+                yield return node;
+
+            yield return root;
+
+            foreach (var node in nodeEnumerator(root.Right))
+                yield return node;
         }
 
         #endregion
@@ -1071,13 +758,10 @@ namespace C5.intervals
         {
             get
             {
-                if (IsEmpty)
+                if (_root == null)
                     throw new InvalidOperationException("An empty collection has no span");
 
-                if (_span == null)
-                    _span = new IntervalBase<T>(getLowest(_root), getHighest(_root));
-
-                return _span;
+                return new IntervalBase<T>(getLowest(_root), getHighest(_root));
             }
         }
 
@@ -1085,29 +769,26 @@ namespace C5.intervals
         {
             Contract.Requires(root != null);
 
-            while (root.Left != null)
-                root = root.Left;
+            if (!root.Less.IsEmpty)
+                return root.Less.Choose();
 
-            if (root.Equal != null && !root.Equal.IsEmpty)
-                return root.Equal.Choose();
-            if (root.Greater != null && !root.Greater.IsEmpty)
-                return root.Greater.Choose();
+            if (root.Left != null)
+                return getLowest(root.Left);
 
-            return root.IntervalsEndingInNode.First();
+            return !root.Equal.IsEmpty ? root.Equal.Choose() : root.Greater.Choose();
         }
 
         private static IInterval<T> getHighest(Node root)
         {
             Contract.Requires(root != null);
 
-            while (root.Right != null)
-                root = root.Right;
+            if (!root.Greater.IsEmpty)
+                return root.Greater.Choose();
 
-            if (root.Equal != null && !root.Equal.IsEmpty)
-                return root.Equal.Choose();
-            if (root.Less != null && !root.Less.IsEmpty)
-                return root.Less.Choose();
-            return root.IntervalsEndingInNode.First();
+            if (root.Right != null)
+                return getHighest(root.Right);
+
+            return !root.Equal.IsEmpty ? root.Equal.Choose() : root.Less.Choose();
         }
 
         #endregion
@@ -1119,6 +800,8 @@ namespace C5.intervals
         {
             get { return _root != null ? _root.Max : 0; }
         }
+
+        public bool AllowsReferenceDuplicates { get; private set; }
 
         /// <summary>
         /// Recursively search for the split node, while updating the maximum overlap on the way
@@ -1137,36 +820,50 @@ namespace C5.intervals
                 return updateMaximumOverlap(root.Left, interval) && root.UpdateMaximumOverlap();
 
             // Search right for split node and update MNO if necessary
-            if (interval.Low.CompareTo(root.Key) > 0)
+            if (root.Key.CompareTo(interval.Low) < 0)
                 return updateMaximumOverlap(root.Right, interval) && root.UpdateMaximumOverlap();
 
             // Return true if MNO has changed for either endpoint
-            var update = updateMaximumOverlap(root, interval.Low);
-            return updateMaximumOverlap(root, interval.High) || update;
+            return updateLowMaximumOverlap(root, interval.Low) || updateHighMaximumOverlap(root, interval.High);
         }
 
-        private static bool updateMaximumOverlap(Node root, T key)
+        private static bool updateLowMaximumOverlap(Node root, T low)
         {
             Contract.Requires(root != null);
 
-            var compare = key.CompareTo(root.Key);
+            var compare = low.CompareTo(root.Key);
 
-            // Search left for key and update MNO if necessary
+            // Search left for low and update MNO if necessary
             if (compare < 0)
-                return updateMaximumOverlap(root.Left, key) && root.UpdateMaximumOverlap();
+                return updateLowMaximumOverlap(root.Left, low) && root.UpdateMaximumOverlap();
 
-            // Search right for key and update MNO if necessary
+            // Search right for low and update MNO if necessary
             if (compare > 0)
-                return updateMaximumOverlap(root.Right, key) && root.UpdateMaximumOverlap();
+                return updateLowMaximumOverlap(root.Right, low) && root.UpdateMaximumOverlap();
 
             // Update MNO when low is found
             return root.UpdateMaximumOverlap();
         }
 
-        #endregion
+        private static bool updateHighMaximumOverlap(Node root, T high)
+        {
+            Contract.Requires(root != null);
 
-        /// <inheritdoc/>
-        public bool AllowsReferenceDuplicates { get { return false; } }
+            var compare = high.CompareTo(root.Key);
+
+            // Search left for high and update MNO if necessary
+            if (compare < 0)
+                return updateHighMaximumOverlap(root.Left, high) && root.UpdateMaximumOverlap();
+
+            // Search right for high and update MNO if necessary
+            if (compare > 0)
+                return updateHighMaximumOverlap(root.Right, high) && root.UpdateMaximumOverlap();
+
+            // Update MNO when high is found
+            return root.UpdateMaximumOverlap();
+        }
+
+        #endregion
 
         #endregion
 
@@ -1181,6 +878,9 @@ namespace C5.intervals
         /// <inheritdoc/>
         public IEnumerable<I> FindOverlaps(IInterval<T> query)
         {
+            if (ReferenceEquals(query, null))
+                yield break;
+
             // Break if collection is empty or the query is outside the collections span
             if (IsEmpty || !Span.Overlaps(query))
                 yield break;
@@ -1188,21 +888,19 @@ namespace C5.intervals
             var set = new IntervalSet();
 
             var splitNode = _root;
-
-            // Use a lambda instead of out, as out or ref isn't allowed for iterators
-            foreach (var interval in findSplitNode(_root, query, n => { splitNode = n; }).Where(set.Add))
-                yield return interval;
+            // Use a lambda instead of out, as out or ref isn't allowed for itorators
+            set.AddAll(findSplitNode(_root, query, n => { splitNode = n; }));
 
             // Find all intersecting intervals in left subtree
             if (query.Low.CompareTo(splitNode.Key) < 0)
-                foreach (var interval in findLeft(splitNode.Left, query).Where(set.Add))
-                    yield return interval;
-
+                set.AddAll(findLeft(splitNode.Left, query));
 
             // Find all intersecting intervals in right subtree
             if (splitNode.Key.CompareTo(query.High) < 0)
-                foreach (var interval in findRight(splitNode.Right, query).Where(set.Add))
-                    yield return interval;
+                set.AddAll(findRight(splitNode.Right, query));
+
+            foreach (var interval in set)
+                yield return interval;
         }
 
         private static IEnumerable<I> findOverlaps(Node root, T query)
@@ -1217,18 +915,18 @@ namespace C5.intervals
                 if (compareTo < 0)
                 {
                     // Return all intervals in Less
-                        foreach (var interval in root.Less)
-                            yield return interval;
+                    foreach (var interval in root.Less)
+                        yield return interval;
 
                     // Move left
                     root = root.Left;
                 }
                 // Query is to the right of the current node
-                else if (compareTo > 0)
+                else if (0 < compareTo)
                 {
                     // Return all intervals in Greater
-                        foreach (var interval in root.Greater)
-                            yield return interval;
+                    foreach (var interval in root.Greater)
+                        yield return interval;
 
                     // Move right
                     root = root.Right;
@@ -1237,8 +935,8 @@ namespace C5.intervals
                 else
                 {
                     // Return all intervals in Equal
-                        foreach (var interval in root.Equal)
-                            yield return interval;
+                    foreach (var interval in root.Equal)
+                        yield return interval;
 
                     // Stop as the search is done
                     yield break;
@@ -1251,151 +949,150 @@ namespace C5.intervals
         /// </summary>
         private static IEnumerable<I> findSplitNode(Node root, IInterval<T> query, Action<Node> setSplitNode)
         {
-            while (root != null)
+            if (root == null) yield break;
+
+            setSplitNode(root);
+
+            // Interval is lower than root, go left
+            if (query.High.CompareTo(root.Key) < 0)
             {
-                // Update split node
-                setSplitNode(root);
+                foreach (var interval in root.Less)
+                    yield return interval;
 
-                // Interval is lower than root, go left
-                if (query.High.CompareTo(root.Key) < 0)
-                {
-                        foreach (var interval in root.Less)
-                            yield return interval;
+                // Recursively travese left subtree
+                foreach (var interval in findSplitNode(root.Left, query, setSplitNode))
+                    yield return interval;
+            }
+            // Interval is higher than root, go right
+            else if (root.Key.CompareTo(query.Low) < 0)
+            {
+                foreach (var interval in root.Greater)
+                    yield return interval;
 
-                    // Update root to left node
-                    root = root.Left;
-                }
-                // Interval is higher than root, go right
-                else if (root.Key.CompareTo(query.Low) < 0)
-                {
-                        foreach (var interval in root.Greater)
-                            yield return interval;
-
-                    // Update root to right node
-                    root = root.Right;
-                }
-                // Otherwise add overlapping nodes in split node
-                else
-                {
-                        foreach (var interval in root.Less.Where(i => query.Overlaps(i)))
-                            yield return interval;
-                        foreach (var interval in root.Equal.Where(i => query.Overlaps(i)))
-                            yield return interval;
-                        foreach (var interval in root.Greater.Where(i => query.Overlaps(i)))
-                            yield return interval;
-
-                    yield break;
-                }
+                // Recursively travese right subtree
+                foreach (var interval in findSplitNode(root.Right, query, setSplitNode))
+                    yield return interval;
+            }
+            // Otherwise add overlapping nodes in split node
+            else
+            {
+                foreach (var interval in root.Less.Where(i => query.Overlaps(i)))
+                    yield return interval;
+                foreach (var interval in root.Equal.Where(i => query.Overlaps(i)))
+                    yield return interval;
+                foreach (var interval in root.Greater.Where(i => query.Overlaps(i)))
+                    yield return interval;
             }
         }
 
         private static IEnumerable<I> findLeft(Node root, IInterval<T> query)
         {
-            while (root != null)
+            // If root is null we have reached the end
+            if (root == null) yield break;
+
+            var compareTo = query.Low.CompareTo(root.Key);
+
+            //
+            if (compareTo > 0)
             {
-                var compareTo = query.Low.CompareTo(root.Key);
+                foreach (var interval in root.Greater)
+                    yield return interval;
 
-                // Search in right subtree
-                if (compareTo > 0)
-                {
-                        foreach (var interval in root.Greater)
-                            yield return interval;
+                // Recursively travese right subtree
+                foreach (var interval in findLeft(root.Right, query))
+                    yield return interval;
+            }
+            //
+            else if (compareTo < 0)
+            {
+                foreach (var interval in root.Less)
+                    yield return interval;
+                foreach (var interval in root.Equal)
+                    yield return interval;
+                foreach (var interval in root.Greater)
+                    yield return interval;
 
-                    // Iteratively travese right subtree
-                    root = root.Right;
-                }
-                // Search in left subtree
-                else if (compareTo < 0)
-                {
-                        foreach (var interval in root.Less)
-                            yield return interval;
+                // Recursively add all intervals in right subtree as they must be
+                // contained by [root.Key:splitNode]
+                var child = getEnumerator(root.Right);
+                while (child.MoveNext())
+                    yield return child.Current;
 
-                        foreach (var interval in root.Equal)
-                            yield return interval;
+                // Recursively travese left subtree
+                foreach (var interval in findLeft(root.Left, query))
+                    yield return interval;
+            }
+            else
+            {
+                // Add all intersecting intervals from right list
+                foreach (var interval in root.Greater)
+                    yield return interval;
 
-                        foreach (var interval in root.Greater)
-                            yield return interval;
-
-                    // Recursively add all intervals in right subtree as they must be
-                    // contained by [root.Key:splitNode]
-                    foreach (var interval in intervals(root.Right))
+                if (query.LowIncluded)
+                    foreach (var interval in root.Equal)
                         yield return interval;
 
-                    // Iteratively travese left subtree
-                    root = root.Left;
-                }
-                else
-                {
-                    // Add all intersecting intervals from right list
-                        foreach (var interval in root.Greater)
-                            yield return interval;
-                        foreach (var interval in root.Equal)
-                            yield return interval;
-
-                    // If we find the matching node, we can add everything in the left subtree
-                    foreach (var interval in intervals(root.Right))
-                        yield return interval;
-
-                    yield break;
-                }
+                // If we find the matching node, we can add everything in the left subtree
+                var child = getEnumerator(root.Right);
+                while (child.MoveNext())
+                    yield return child.Current;
             }
         }
 
         private static IEnumerable<I> findRight(Node root, IInterval<T> query)
         {
             // If root is null we have reached the end
-            while (root != null)
+            if (root == null) yield break;
+
+            var compareTo = query.High.CompareTo(root.Key);
+
+            //
+            if (compareTo < 0)
             {
-                var compareTo = query.High.CompareTo(root.Key);
+                // Add all intersecting intervals from left list
+                foreach (var interval in root.Less)
+                    yield return interval;
 
-                //
-                if (compareTo < 0)
-                {
-                    // Add all intersecting intervals from left list
-                        foreach (var interval in root.Less)
-                            yield return interval;
+                // Otherwise Recursively travese left subtree
+                foreach (var interval in findRight(root.Left, query))
+                    yield return interval;
+            }
+            //
+            else if (compareTo > 0)
+            {
+                // As our query interval contains the interval [root.Key:splitNode]
+                // all intervals in root can be returned without any checks
+                foreach (var interval in root.Less)
+                    yield return interval;
+                foreach (var interval in root.Equal)
+                    yield return interval;
+                foreach (var interval in root.Greater)
+                    yield return interval;
 
-                    // Otherwise Recursively travese left subtree
-                    root = root.Left;
-                }
-                //
-                else if (compareTo > 0)
-                {
-                    // As our query interval contains the interval [root.Key:splitNode]
-                    // all intervals in root can be returned without any checks
-                        foreach (var interval in root.Less)
-                            yield return interval;
+                // Recursively add all intervals in right subtree as they must be
+                // contained by [root.Key:splitNode]
+                var child = getEnumerator(root.Left);
+                while (child.MoveNext())
+                    yield return child.Current;
 
-                        foreach (var interval in root.Equal)
-                            yield return interval;
+                // Recursively travese left subtree
+                foreach (var interval in findRight(root.Right, query))
+                    yield return interval;
+            }
+            else
+            {
+                // Add all intersecting intervals from left list
+                foreach (var interval in root.Less)
+                    yield return interval;
 
-                        foreach (var interval in root.Greater)
-                            yield return interval;
-
-                    // Recursively add all intervals in right subtree as they must be
-                    // contained by [root.Key:splitNode]
-                    foreach (var interval in intervals(root.Left))
+                if (query.HighIncluded)
+                    foreach (var interval in root.Equal)
                         yield return interval;
 
-                    // Recursively travese left subtree
-                    root = root.Right;
-                }
-                else
-                {
-                    // Add all intersecting intervals from left list
-                        foreach (var interval in root.Less)
-                            yield return interval;
-
-                    if (query.HighIncluded)
-                        foreach (var interval in root.Equal)
-                            yield return interval;
-
-                    // If we find the matching node, we can add everything in the left subtree
-                    foreach (var interval in intervals(root.Left))
-                        yield return interval;
-
-                    yield break;
-                }
+                // If we find the matching node, we can add everything in the left subtree
+                var child = getEnumerator(root.Left);
+                while (child.MoveNext())
+                    yield return child.Current;
             }
         }
 
@@ -1406,15 +1103,11 @@ namespace C5.intervals
         /// <inheritdoc/>
         public bool FindOverlap(T query, ref I overlap)
         {
-            bool result;
+            var enumerator = FindOverlaps(query).GetEnumerator();
+            var result = enumerator.MoveNext();
 
-            using (var enumerator = FindOverlaps(query).GetEnumerator())
-            {
-                result = enumerator.MoveNext();
-
-                if (result)
-                    overlap = enumerator.Current;
-            }
+            if (result)
+                overlap = enumerator.Current;
 
             return result;
         }
@@ -1422,15 +1115,11 @@ namespace C5.intervals
         /// <inheritdoc/>
         public bool FindOverlap(IInterval<T> query, ref I overlap)
         {
-            bool result;
+            var enumerator = FindOverlaps(query).GetEnumerator();
+            var result = enumerator.MoveNext();
 
-            using (var enumerator = FindOverlaps(query).GetEnumerator())
-            {
-                result = enumerator.MoveNext();
-
-                if (result)
-                    overlap = enumerator.Current;
-            }
+            if (result)
+                overlap = enumerator.Current;
 
             return result;
         }
@@ -1471,19 +1160,15 @@ namespace C5.intervals
 
             // Insert low endpoint
             var nodeWasAdded = false;
-            _root = addLow(interval, _root, null, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
+            _root = addLow(_root, null, interval, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
 
             // Insert high endpoint
             nodeWasAdded = false;
-            _root = addHigh(interval, _root, null, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
+            _root = addHigh(_root, null, interval, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
 
             // Increase counters and raise event if interval was added
             if (intervalWasAdded)
             {
-                // Update span if necessary
-                if (_span != null && !_span.Contains(interval))
-                    _span = _span.JoinedSpan(interval);
-
                 // Update MNO delta for low
                 if (interval.LowIncluded)
                     lowNode.DeltaAt++;
@@ -1499,8 +1184,8 @@ namespace C5.intervals
                 // Update MNO
                 updateMaximumOverlap(_root, interval);
 
-                lowNode.IntervalsEndingInNode.Add(interval);
-                highNode.IntervalsEndingInNode.Add(interval);
+                lowNode.IntervalsEndingInNode++;
+                highNode.IntervalsEndingInNode++;
 
                 _count++;
                 raiseForAdd(interval);
@@ -1514,20 +1199,13 @@ namespace C5.intervals
         /// <inheritdoc/>
         public void AddAll(IEnumerable<I> intervals)
         {
-            // TODO: Look into bulk insertion
+            // TODO: Any fancy things missing here?
             foreach (var interval in intervals)
                 Add(interval);
         }
 
-        private static void addLow(I interval, Node root, Node rightUp)
-        {
-            var nodeWasAdded = false;
-            var intervalWasAdded = false;
-            Node lowNode = null;
-            addLow(interval, root, rightUp, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
-        }
-
-        private static Node addLow(I interval, Node root, Node rightUp, ref bool nodeWasAdded, ref bool intervalWasAdded, ref Node lowNode)
+        // TODO: Make iterative?
+        private static Node addLow(Node root, Node right, I interval, ref bool nodeWasAdded, ref bool intervalWasAdded, ref Node lowNode)
         {
             Contract.Requires(!ReferenceEquals(interval, null));
 
@@ -1545,7 +1223,7 @@ namespace C5.intervals
 
             if (compare > 0)
             {
-                root.Right = addLow(interval, root.Right, rightUp, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
+                root.Right = addLow(root.Right, right, interval, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
 
                 // Adjust node balance, if node was added
                 if (nodeWasAdded)
@@ -1554,23 +1232,15 @@ namespace C5.intervals
             else if (compare < 0)
             {
                 // Everything in the right subtree of root will lie within the interval
-                if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                {
-                    if (root.Greater == null)
-                        root.Greater = new IntervalSet();
+                if (right != null && right.Key.CompareTo(interval.High) <= 0)
                     intervalWasAdded |= root.Greater.Add(interval);
-                }
 
                 // root key is between interval.low and interval.high
                 if (root.Key.CompareTo(interval.High) < 0)
-                {
-                    if (root.Equal == null)
-                        root.Equal = new IntervalSet();
-
                     intervalWasAdded |= root.Equal.Add(interval);
-                }
 
-                root.Left = addLow(interval, root.Left, root, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
+                // TODO: Figure this one out: if (interval.low != -inf.)
+                root.Left = addLow(root.Left, root, interval, ref nodeWasAdded, ref intervalWasAdded, ref lowNode);
 
                 // Adjust node balance, if node was added
                 if (nodeWasAdded)
@@ -1579,21 +1249,11 @@ namespace C5.intervals
             else
             {
                 // If everything in the right subtree of root will lie within the interval
-                if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                {
-                    if (root.Greater == null)
-                        root.Greater = new IntervalSet();
-
+                if (right != null && right.Key.CompareTo(interval.High) <= 0)
                     intervalWasAdded |= root.Greater.Add(interval);
-                }
 
                 if (interval.LowIncluded)
-                {
-                    if (root.Equal == null)
-                        root.Equal = new IntervalSet();
-
                     intervalWasAdded |= root.Equal.Add(interval);
-                }
 
                 // Save reference to endpoint node
                 lowNode = root;
@@ -1606,15 +1266,7 @@ namespace C5.intervals
             return root;
         }
 
-        private static void addHigh(I interval, Node root, Node leftUp)
-        {
-            var nodeWasAdded = false;
-            var intervalWasAdded = false;
-            Node highNode = null;
-            addHigh(interval, root, leftUp, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
-        }
-
-        private static Node addHigh(I interval, Node root, Node leftUp, ref bool nodeWasAdded, ref bool intervalWasAdded, ref Node highNode)
+        private static Node addHigh(Node root, Node left, I interval, ref bool nodeWasAdded, ref bool intervalWasAdded, ref Node highNode)
         {
             Contract.Requires(!ReferenceEquals(interval, null));
 
@@ -1632,7 +1284,7 @@ namespace C5.intervals
 
             if (compare < 0)
             {
-                root.Left = addHigh(interval, root.Left, leftUp, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
+                root.Left = addHigh(root.Left, left, interval, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
 
                 // Adjust node balance, if node was added
                 if (nodeWasAdded)
@@ -1641,24 +1293,15 @@ namespace C5.intervals
             else if (compare > 0)
             {
                 // Everything in the right subtree of root will lie within the interval
-                if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                {
-                    if (root.Less == null)
-                        root.Less = new IntervalSet();
-
+                if (left != null && left.Key.CompareTo(interval.Low) >= 0)
                     intervalWasAdded |= root.Less.Add(interval);
-                }
 
                 // root key is between interval.low and interval.high
                 if (root.Key.CompareTo(interval.Low) > 0)
-                {
-                    if (root.Equal == null)
-                        root.Equal = new IntervalSet();
-
                     intervalWasAdded |= root.Equal.Add(interval);
-                }
 
-                root.Right = addHigh(interval, root.Right, root, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
+                // TODO: Figure this one out: if (interval.low != -inf.)
+                root.Right = addHigh(root.Right, root, interval, ref nodeWasAdded, ref intervalWasAdded, ref highNode);
 
                 // Adjust node balance, if node was added
                 if (nodeWasAdded)
@@ -1667,21 +1310,11 @@ namespace C5.intervals
             else
             {
                 // If everything in the right subtree of root will lie within the interval
-                if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                {
-                    if (root.Less == null)
-                        root.Less = new IntervalSet();
-
+                if (left != null && left.Key.CompareTo(interval.Low) >= 0)
                     intervalWasAdded |= root.Less.Add(interval);
-                }
 
                 if (interval.HighIncluded)
-                {
-                    if (root.Equal == null)
-                        root.Equal = new IntervalSet();
-
                     intervalWasAdded |= root.Equal.Add(interval);
-                }
 
                 // Save reference to endpoint node
                 highNode = root;
@@ -1701,10 +1334,6 @@ namespace C5.intervals
         /// <inheritdoc/>
         public bool Remove(I interval)
         {
-            // Nothing to remove is the collection is empty or the interval doesn't overlap the span
-            if (IsEmpty || !interval.Overlaps(Span))
-                return false;
-
             // References to endpoint nodes needed when maintaining Interval
             Node lowNode = null, highNode = null;
 
@@ -1712,18 +1341,14 @@ namespace C5.intervals
             var intervalWasRemoved = false;
 
             // Remove low endpoint
-            removeLow(interval, _root, null, ref intervalWasRemoved, ref lowNode);
+            removeLow(_root, null, interval, ref intervalWasRemoved, ref lowNode);
 
             // Remove high endpoint
-            removeHigh(interval, _root, null, ref intervalWasRemoved, ref highNode);
+            removeHigh(_root, null, interval, ref intervalWasRemoved, ref highNode);
 
             // Increase counters and raise event if interval was added
             if (intervalWasRemoved)
             {
-                // Invalidate span if necessary
-                if (!_span.StrictlyContains(interval))
-                    _span = null;
-
                 // Update MNO delta for low
                 if (interval.LowIncluded)
                     lowNode.DeltaAt--;
@@ -1735,30 +1360,14 @@ namespace C5.intervals
                 else
                     highNode.DeltaAfter++;
 
-                lowNode.IntervalsEndingInNode.Remove(interval);
-                highNode.IntervalsEndingInNode.Remove(interval);
-
                 // Update MNO
                 updateMaximumOverlap(_root, interval);
 
                 // Check for unnecessary endpoint nodes, if interval was actually removed
-                if (lowNode.IntervalsEndingInNode.IsEmpty)
-                {
-                    var updateBalanace = false;
-                    _root = removeNodeWithKey(interval.Low, _root, ref updateBalanace);
-
-                    // Check that the node does not exist anymore
-                    Contract.Assert(!Contract.Exists(nodes(_root), n => n.Key.Equals(interval.Low)));
-                }
-
-                if (highNode.IntervalsEndingInNode.IsEmpty)
-                {
-                    var updateBalanace = false;
-                    _root = removeNodeWithKey(interval.High, _root, ref updateBalanace);
-
-                    // Check that the node does not exist anymore
-                    Contract.Assert(!Contract.Exists(nodes(_root), n => n.Key.Equals(interval.High)));
-                }
+                if (--lowNode.IntervalsEndingInNode == 0)
+                    removeNodeWithKey(interval.Low);
+                if (--highNode.IntervalsEndingInNode == 0)
+                    removeNodeWithKey(interval.High);
 
                 _count--;
                 raiseForRemove(interval);
@@ -1769,188 +1378,190 @@ namespace C5.intervals
             return intervalWasRemoved;
         }
 
-        private static void removeLow(I interval, Node root, Node rightUp, ref bool intervalWasRemoved, ref Node lowNode)
+        private static void removeLow(Node root, Node right, I interval, ref bool intervalWasRemoved, ref Node lowNode)
         {
             Contract.Requires(!ReferenceEquals(interval, null));
 
-            while (root != null)
+            // No node existed for the low endpoint
+            if (root == null)
+                return;
+
+            var compare = interval.Low.CompareTo(root.Key);
+
+            if (compare > 0)
+                removeLow(root.Right, right, interval, ref intervalWasRemoved, ref lowNode);
+            else if (compare < 0)
             {
-                var compare = interval.Low.CompareTo(root.Key);
+                // Everything in the right subtree of root will lie within the interval
+                if (right != null && right.Key.CompareTo(interval.High) <= 0)
+                    intervalWasRemoved |= root.Greater.Remove(interval);
 
-                if (compare > 0)
-                    root = root.Right;
-                else if (compare < 0)
-                {
-                    // Everything in the right subtree of root will lie within the interval
-                    if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                        if (root.Greater == null || !(intervalWasRemoved |= root.Greater.Remove(interval)))
-                            return;
+                // root key is between interval.low and interval.high
+                if (root.Key.CompareTo(interval.High) < 0)
+                    intervalWasRemoved |= root.Equal.Remove(interval);
 
-                    // root key is between interval.low and interval.high
-                    if (root.Key.CompareTo(interval.High) < 0)
-                        if (root.Equal == null || !(intervalWasRemoved |= root.Equal.Remove(interval)))
-                            return;
+                // TODO: Figure this one out: if (interval.low != -inf.)
+                removeLow(root.Left, root, interval, ref intervalWasRemoved, ref lowNode);
+            }
+            else
+            {
+                // If everything in the right subtree of root will lie within the interval
+                if (right != null && right.Key.CompareTo(interval.High) <= 0)
+                    intervalWasRemoved |= root.Greater.Remove(interval);
 
-                    rightUp = root;
-                    root = root.Left;
-                }
-                else
-                {
-                    // If everything in the right subtree of root will lie within the interval
-                    if (rightUp != null && rightUp.Key.CompareTo(interval.High) <= 0)
-                        if (root.Greater == null || !(intervalWasRemoved |= root.Greater.Remove(interval)))
-                            return;
+                if (interval.LowIncluded)
+                    intervalWasRemoved |= root.Equal.Remove(interval);
 
-                    if (interval.LowIncluded)
-                        if (root.Equal == null || !(intervalWasRemoved |= root.Equal.Remove(interval)))
-                            return;
-
-                    // Save reference to endpoint node
-                    lowNode = root;
-
-                    break;
-                }
+                // Save reference to endpoint node
+                lowNode = root;
             }
         }
 
-        private static void removeHigh(I interval, Node root, Node leftUp, ref bool intervalWasRemoved, ref Node highNode)
+        private static void removeHigh(Node root, Node left, I interval, ref bool intervalWasRemoved, ref Node highNode)
         {
             // No node existed for the high endpoint
-            while (root != null)
+            if (root == null)
+                return;
+
+            var compare = interval.High.CompareTo(root.Key);
+
+            if (compare < 0)
+                removeHigh(root.Left, left, interval, ref intervalWasRemoved, ref highNode);
+            else if (compare > 0)
             {
+                // Everything in the right subtree of root will lie within the interval
+                if (left != null && left.Key.CompareTo(interval.Low) >= 0)
+                    intervalWasRemoved |= root.Less.Remove(interval);
 
-                var compare = interval.High.CompareTo(root.Key);
+                // root key is between interval.low and interval.high
+                if (root.Key.CompareTo(interval.Low) > 0)
+                    intervalWasRemoved |= root.Equal.Remove(interval);
 
-                if (compare < 0)
-                    root = root.Left;
-                else if (compare > 0)
-                {
-                    // Everything in the right subtree of root will lie within the interval
-                    if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                        if (root.Less == null || !(intervalWasRemoved |= root.Less.Remove(interval)))
-                            return;
-
-                    // root key is between interval.low and interval.high
-                    if (root.Key.CompareTo(interval.Low) > 0)
-                        if (root.Equal == null || !(intervalWasRemoved |= root.Equal.Remove(interval)))
-                            return;
-
-                    leftUp = root;
-                    root = root.Right;
-                }
-                else
-                {
-                    // If everything in the right subtree of root will lie within the interval
-                    if (leftUp != null && leftUp.Key.CompareTo(interval.Low) >= 0)
-                        if (root.Less == null || !(intervalWasRemoved |= root.Less.Remove(interval)))
-                            return;
-
-                    if (interval.HighIncluded)
-                        if (root.Equal == null || !(intervalWasRemoved |= root.Equal.Remove(interval)))
-                            return;
-
-                    // Save reference to endpoint node
-                    highNode = root;
-
-                    break;
-                }
+                // TODO: Figure this one out: if (interval.low != -inf.)
+                removeHigh(root.Right, root, interval, ref intervalWasRemoved, ref highNode);
             }
+            else
+            {
+                // If everything in the right subtree of root will lie within the interval
+                if (left != null && left.Key.CompareTo(interval.Low) >= 0)
+                    intervalWasRemoved |= root.Less.Remove(interval);
+
+                if (interval.HighIncluded)
+                    intervalWasRemoved |= root.Equal.Remove(interval);
+
+                // Save reference to endpoint node
+                highNode = root;
+            }
+
+            // Update MNO
+            if (intervalWasRemoved)
+                root.UpdateMaximumOverlap();
         }
 
-        private static Node removeNodeWithKey(T key, Node root, ref bool updateBalance, Node leftUp = null, Node rightUp = null)
+        private void removeNodeWithKey(T key)
         {
-            Contract.Requires(root != null);
-            Contract.Requires(Contract.Exists(nodes(root), n => n.Key.Equals(key)));
+            // TODO: Implement
+            var node = findNode(_root, key);
 
-            var compare = key.CompareTo(root.Key);
+            // We only remove nodes that exist
+            Contract.Assert(node != null);
+
+            if (node.Left == null && node.Right == null)
+            { }
+        }
+
+        private static Node removeNodeWithKey(Node root, T key, ref bool updateBalanace)
+        {
+            if (root == null)
+                return null;
+
+            var compare = root.Key.CompareTo(key);
 
             // Remove node from right subtree
             if (compare > 0)
             {
-                // Update left parent
-                root.Right = removeNodeWithKey(key, root.Right, ref updateBalance, root, rightUp);
+                root.Right = removeNodeWithKey(root.Right, key, ref updateBalanace);
 
-                if (updateBalance)
+                if (updateBalanace)
                     root.Balance--;
             }
             // Remove node from left subtree
             else if (compare < 0)
             {
-                root.Left = removeNodeWithKey(key, root.Left, ref updateBalance, leftUp, root);
+                root.Left = removeNodeWithKey(root.Left, key, ref updateBalanace);
 
-                if (updateBalance)
+                if (updateBalanace)
                     root.Balance++;
             }
             // Node found
-            // Replace node with successor
-            else if (root.Left != null && root.Right != null)
-            {
-                var successor = findSuccessor(root.Right);
-
-                // Get intervals in successor
-                var intervalsNeedingReinsertion = successor.IntervalsEndingInNode;
-
-                // Remove marks for intervals in successor
-                foreach (var interval in intervalsNeedingReinsertion)
-                {
-                    var intervalWasRemoved = false;
-                    Node node = null;
-
-                    if (leftUp == null || leftUp.Key.CompareTo(interval.Low) < 0)
-                        removeLow(interval, root, rightUp, ref intervalWasRemoved, ref node);
-
-                    if (rightUp == null || interval.High.CompareTo(rightUp.Key) < 0)
-                        removeHigh(interval, root, leftUp, ref intervalWasRemoved, ref node);
-                }
-
-                // Swap root and successor nodes
-                root.Swap(successor);
-
-                updateMaximumOverlap(root.Right, successor.Key);
-
-                // Remove the successor node
-                updateBalance = false;
-                root.Right = removeNodeWithKey(successor.Key, root.Right, ref updateBalance, leftUp, rightUp);
-
-                if (updateBalance)
-                    root.Balance--;
-
-                // Reinsert marks for intervals in successor
-                foreach (var interval in intervalsNeedingReinsertion)
-                {
-                    if (leftUp == null || leftUp.Key.CompareTo(interval.Low) < 0)
-                        addLow(interval, root, rightUp);
-                    if (rightUp == null || interval.High.CompareTo(rightUp.Key) < 0)
-                        addHigh(interval, root, leftUp);
-                }
-
-                root.UpdateMaximumOverlap();
-            }
             else
             {
-                updateBalance = true;
+                updateBalanace = true;
 
-                // Return Left if not null, otherwise Right
-                return root.Left ?? root.Right;
+                // Replace node with successor
+                if (root.Left != null && root.Right != null)
+                {
+                    // TODO: maintain IBS invariant
+
+                    var successor = findMinNode(root.Right);
+
+                    var intervalsNeedingReinsertion = successor.GetIntervalsEndingInNode();
+
+                    // Swap keys, so we can search for
+                    root.SwapKeys(successor);
+
+                    updateBalanace = false;
+
+                    root.Right = removeNodeWithKey(root.Right, successor.Key, ref updateBalanace);
+
+                    if (updateBalanace)
+                        root.Balance--;
+                }
+                // Replace node with right child
+                else if (root.Left == null)
+                    // If no children root.Right is null too, so we just return null
+                    return root.Right;
+                // Replace node with left child
+                else
+                    return root.Left;
             }
 
-            if (updateBalance)
-                root = rotateForRemove(root, ref updateBalance);
+            if (updateBalanace)
+                root = rotateForRemove(root, ref updateBalanace);
 
             return root;
         }
 
         /// <summary>
-        /// Find the successor node.
+        /// Find the node containing the search key.
         /// </summary>
-        /// <returns>The successor node.</returns>
-        private static Node findSuccessor(Node node)
+        /// <param name="node">The root node which subtree should be searched.</param>
+        /// <param name="searchKey">The key being searched.</param>
+        /// <returns>The node containing the key if it exists, otherwise null.</returns>
+        private static Node findNode(Node node, T searchKey)
         {
-            Contract.Requires(node != null);
-            Contract.Ensures(Contract.Result<Node>() != null);
-            Contract.Ensures(Contract.Result<Node>() == nodes(Contract.OldValue(node)).First());
+            while (node != null)
+            {
+                var compare = node.Key.CompareTo(searchKey);
 
-            while (node.Left != null)
+                if (compare > 0)
+                    node = node.Right;
+                else if (compare < 0)
+                    node = node.Left;
+                else
+                    break;
+            }
+
+            return node;
+        }
+
+        /// <summary>
+        /// Find the current least node in the interval tree.
+        /// </summary>
+        /// <returns>The least node. Null if the tree is empty.</returns>
+        private static Node findMinNode(Node node)
+        {
+            while (node != null)
                 node = node.Left;
 
             return node;
@@ -1960,11 +1571,15 @@ namespace C5.intervals
 
         #region Clear
 
-        /// <inheritdoc/>
+        /// <summary>
+        /// Remove all intervals from this collection.
+        /// </summary>  
         public void Clear()
         {
+            Contract.Ensures(_root == null);
+
             // Return if tree is empty
-            if (IsEmpty)
+            if (_root == null)
                 return;
 
             // Save old count and reset all values
@@ -1990,124 +1605,115 @@ namespace C5.intervals
 
         #endregion
 
-        #region QuickGraph
+        #region GraphViz
 
         /// <summary>
         /// Get a string representation of the tree in GraphViz dot format using QuickGraph.
         /// </summary>
         /// <returns>GraphViz string.</returns>
-        public string QuickGraph
+        public string QuickGraph()
         {
-            get
+            var graph = new AdjacencyGraph<Node, Edge<Node>>();
+
+            if (_root != null)
             {
-                var graph = new AdjacencyGraph<Node, Edge<Node>>();
-
-                if (_root != null)
-                {
-                    var node = new Node();
-                    graph.AddVertex(node);
-                    graph.AddEdge(new Edge<Node>(node, _root));
-                }
-
-                foreach (var node in nodes(_root))
-                {
-                    graph.AddVertex(node);
-
-                    if (node.Left != null)
-                    {
-                        graph.AddVertex(node.Left);
-                        graph.AddEdge(new Edge<Node>(node, node.Left));
-                    }
-                    else
-                    {
-                        var dummy = new Node();
-                        graph.AddVertex(dummy);
-                        graph.AddEdge(new Edge<Node>(node, dummy));
-                    }
-
-                    if (node.Right != null)
-                    {
-                        graph.AddVertex(node.Right);
-                        graph.AddEdge(new Edge<Node>(node, node.Right));
-                    }
-                    else
-                    {
-                        var dummy = new Node();
-                        graph.AddVertex(dummy);
-                        graph.AddEdge(new Edge<Node>(node, dummy));
-                    }
-                }
-
-                var gw = new GraphvizAlgorithm<Node, Edge<Node>>(graph);
-
-                gw.FormatVertex += delegate(object sender, FormatVertexEventArgs<Node> e)
-                    {
-                        if (e.Vertex.Dummy)
-                        {
-                            e.VertexFormatter.Shape = GraphvizVertexShape.Point;
-                        }
-                        else
-                        {
-                            e.VertexFormatter.Shape = GraphvizVertexShape.Record;
-                            e.VertexFormatter.Style = GraphvizVertexStyle.Rounded;
-                            e.VertexFormatter.Font = new GraphvizFont("consola", 12);
-
-                            // Generate main cell
-                            var cell = new GraphvizRecordCell();
-                            // Add Key in top cell
-                            cell.Cells.Add(new GraphvizRecordCell { Text = e.Vertex.Key.ToString() });
-                            // Add Less, Equal and Greater set in bottom cell
-                            var bottom = new GraphvizRecordCell();
-
-                            const string emptyString = "()"; // "{}" would have been better - but they mess with the output.
-                            const string nullString = "Ø";
-                            bottom.Cells.Add(new GraphvizRecordCell
-                                {
-                                    Text = e.Vertex.Less != null && !e.Vertex.Less.IsEmpty ?
-                                    e.Vertex.Less.ToString() : e.Vertex.Less != null && e.Vertex.Less.IsEmpty ?
-                                    emptyString : nullString
-                                });
-                            bottom.Cells.Add(new GraphvizRecordCell
-                                {
-                                    Text = e.Vertex.Equal != null && !e.Vertex.Equal.IsEmpty ?
-                                    e.Vertex.Equal.ToString() : e.Vertex.Equal != null && e.Vertex.Equal.IsEmpty ?
-                                    emptyString : nullString
-                                });
-                            bottom.Cells.Add(new GraphvizRecordCell
-                                {
-                                    Text = e.Vertex.Greater != null && !e.Vertex.Greater.IsEmpty ?
-                                    e.Vertex.Greater.ToString() : e.Vertex.Greater != null && e.Vertex.Greater.IsEmpty ?
-                                    emptyString : nullString
-                                });
-
-                            cell.Cells.Add(bottom);
-
-                            /*
-                            cell.Cells.Add(new GraphvizRecordCell
-                            {
-                                Text = String.Format("dAt: {0}, dAfter: {1}, Sum: {2}, Max: {3}", e.Vertex.DeltaAt, e.Vertex.DeltaAfter, e.Vertex.Sum, e.Vertex.Max)
-                            });
-                            //*/
-
-                            // Add cell to record
-                            e.VertexFormatter.Record.Cells.Add(cell);
-
-
-                        }
-                    };
-                gw.FormatEdge += delegate(object sender, FormatEdgeEventArgs<Node, Edge<Node>> e)
-                    {
-                        e.EdgeFormatter.Label = new GraphvizEdgeLabel
-                            {
-                                Value = !e.Edge.Target.Dummy
-                                    ? ((e.Edge.Target.Balance > 0 ? "+" : "") + e.Edge.Target.Balance + " / " + e.Edge.Target.IntervalsEndingInNode)
-                                    : ""
-                            };
-                    };
-
-
-                return gw.Generate();
+                var node = new Node(default(T));
+                graph.AddVertex(node);
+                graph.AddEdge(new Edge<Node>(node, _root));
             }
+
+            foreach (var node in nodeEnumerator(_root))
+            {
+                graph.AddVertex(node);
+
+                if (node.Left != null)
+                {
+                    graph.AddVertex(node.Left);
+                    graph.AddEdge(new Edge<Node>(node, node.Left));
+                }
+
+                if (node.Right != null)
+                {
+                    graph.AddVertex(node.Right);
+                    graph.AddEdge(new Edge<Node>(node, node.Right));
+                }
+            }
+
+            var gw = new GraphvizAlgorithm<Node, Edge<Node>>(graph);
+
+            gw.FormatVertex += delegate(object sender, FormatVertexEventArgs<Node> e)
+            {
+                e.VertexFormatter.Shape = GraphvizVertexShape.Record;
+                e.VertexFormatter.Style = GraphvizVertexStyle.Rounded;
+                e.VertexFormatter.Font = new GraphvizFont("consola", 12);
+
+                // Generate main cell
+                var cell = new GraphvizRecordCell();
+                // Add Key in top cell
+                cell.Cells.Add(new GraphvizRecordCell { Text = e.Vertex.Key.ToString() });
+                // Add Less, Equal and Greater set in bottom cell
+                var bottom = new GraphvizRecordCell();
+                bottom.Cells.Add(new GraphvizRecordCell { Text = e.Vertex.Less.ToString() });
+                bottom.Cells.Add(new GraphvizRecordCell { Text = e.Vertex.Equal.ToString() });
+                bottom.Cells.Add(new GraphvizRecordCell { Text = e.Vertex.Greater.ToString() });
+                cell.Cells.Add(bottom);
+                // Add cell to record
+                e.VertexFormatter.Record.Cells.Add(cell);
+            };
+            gw.FormatEdge += delegate(object sender, FormatEdgeEventArgs<Node, Edge<Node>> e)
+            {
+                e.EdgeFormatter.Label = new GraphvizEdgeLabel
+                {
+                    Value = (e.Edge.Target.Balance > 0 ? "+" : "") + e.Edge.Target.Balance + " / " + e.Edge.Target.IntervalsEndingInNode
+                };
+            };
+
+
+            var graphviz = gw.Generate();
+
+            return graphviz.Replace("GraphvizColor", "color");
+        }
+
+        /// <summary>
+        /// Print the tree structure in Graphviz format
+        /// </summary>
+        /// <returns></returns>
+        public string Graphviz()
+        {
+            return "digraph IntervalBinarySearchTree {\n"
+                + "\tnode [shape=record, style=rounded];\n"
+                + graphviz(_root, "root", null)
+                + "}\n";
+        }
+
+        private int _nodeCounter;
+        private int _nullCounter;
+
+        private string graphviz(Node root, string parent, string direction)
+        {
+            int id;
+            if (root == null)
+            {
+                id = _nullCounter++;
+                return String.Format("\tleaf{0} [shape=point];\n", id) +
+                    String.Format("\t{0}:{1} -> leaf{2};\n", parent, direction, id);
+            }
+
+            id = _nodeCounter++;
+            var rootString = direction == null ? "" : String.Format("\t{0} -> struct{1}:n;\n", parent, id);
+
+            return
+                // Creates the structid: structid [label="<key> keyValue|{lessSet|equalSet|greaterSet}|{<idleft> leftChild|<idright> rightChild}"];
+                String.Format("\tstruct{0} [fontname=consola, label=\"{{<key> {1}|{{{2}|{3}|{4}}}}}\"];\n", id, root.Key, root.Less, root.Equal, root.Greater)
+
+                // Links the parents leftChild to nodeid: parent:left -> structid:key;
+                + rootString
+
+                // Calls graphviz() recursively on leftChild
+                + graphviz(root.Left, "struct" + id, "left")
+
+                // Calls graphviz() recursively on rightChild
+                + graphviz(root.Right, "struct" + id, "right");
         }
 
         #endregion

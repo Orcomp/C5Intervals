@@ -9,7 +9,7 @@ namespace C5.Performance.Wpf.Benchmarks
 
         public override void CollectionSetup()
         {
-            _intervals = Tests.intervals.BenchmarkTestCases.DataSetAOpen(CollectionSize);
+            _intervals = Tests.intervals.BenchmarkTestCases.DataSetA(CollectionSize);
             _collection = new IntervalBinarySearchTreeAvl<IInterval<int>, int>();
             ItemsArray = SearchAndSort.FillIntArray(CollectionSize);
             SearchAndSort.Shuffle(ItemsArray);
