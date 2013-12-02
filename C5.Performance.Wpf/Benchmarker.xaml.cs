@@ -54,6 +54,8 @@ namespace C5.Performance.Wpf
         private void benchmarkStart(object sender, RoutedEventArgs e)
         {
             runSequentialCheckBox.IsEnabled = false;
+            CheckBox_Checked_RunQuick(null, null);
+            CheckBox_Unchecked_RunWarmups(null,null);
 
             // This benchmark is the one we use to compare with Sestoft's cmd line version of the tool
             var thread = _runSequential
@@ -135,13 +137,6 @@ namespace C5.Performance.Wpf
             // Save document
             var path = dlg.FileName;
             _plotter.ExportPdf(path, ActualWidth, ActualHeight);
-        }
-
-        protected override void OnClosed(EventArgs e)
-        {
-            base.OnClosed(e);
-
-            Application.Current.Shutdown();
         }
 
         #endregion
