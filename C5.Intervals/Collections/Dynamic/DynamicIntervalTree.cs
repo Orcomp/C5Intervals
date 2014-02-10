@@ -1182,6 +1182,15 @@ namespace C5.Intervals
         #region Constructors
 
         /// <summary>
+        /// Construct an empty Dynamic Interval Tree. Reference duplicates are not allowed.
+        /// </summary>
+        public DynamicIntervalTree()
+        {
+            // Set reference duplicate behavior
+            AllowsReferenceDuplicates = false;
+        }
+
+        /// <summary>
         /// Construct an empty Dynamic Interval Tree.
         /// </summary>
         /// <param name="allowReferenceDuplicates">Set how reference duplicates should be handled.</param>
