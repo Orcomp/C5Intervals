@@ -35,6 +35,15 @@ namespace C5.Intervals
         /// Create a Layered Containment List with a collection of intervals.
         /// </summary>
         /// <param name="intervals">The collection of intervals.</param>
+        public StaticFiniteIntervalList(IEnumerable<I> intervals)
+            :this(intervals, false)
+        {
+        }
+
+        /// <summary>
+        /// Create a Layered Containment List with a collection of intervals.
+        /// </summary>
+        /// <param name="intervals">The collection of intervals.</param>
         public StaticFiniteIntervalList(IEnumerable<I> intervals, bool RemoveOverlapsInSortingOrder = false)
         {
             Contract.Requires(intervals != null);
