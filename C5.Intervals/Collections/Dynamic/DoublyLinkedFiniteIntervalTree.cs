@@ -884,6 +884,15 @@ namespace C5.Intervals
             _root = forceAdd(interval, _root, _first, ref rotationNeeded, out node);
             _count++;
 
+            // If interval has the same low value as node then we need to swap
+            if (node.Next.Key != null)
+            {
+                if (node.Key.CompareLow(node.Next.Key) == 0)
+                {
+                    node.Next.Swap(node);
+                }
+            }
+
             if (forcePosition && node.Previous != _first && node.Previous.Key.CompareHighLow(node.Key) <= 0)
             {
                 node.Previous.Swap(node);

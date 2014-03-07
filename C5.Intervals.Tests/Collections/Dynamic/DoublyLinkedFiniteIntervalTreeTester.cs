@@ -582,6 +582,7 @@ namespace C5.Intervals.Tests
             public void SetUp()
             {
                 callCount = 0;
+
                 action = (x, y) =>
                 {
                     callCount++;
