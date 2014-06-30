@@ -641,21 +641,21 @@ namespace C5.Intervals.Tests
                 Assert.That(callCount, Is.EqualTo(1));
             }
 
-            [Test]
-            public void ForceAdd_InsertAsOverlapping_ShiftOverlapOnce()
-            {
-                var intervals = new[]
-                {
-                    new Interval(0, 2),
-                    new Interval(3, 4),
-                };
-                var collection = new DoublyLinkedFiniteIntervalTree<Interval, int>(intervals);
-                var interval = new Interval(1, 2);
+            //[Test]
+            //public void ForceAdd_InsertAsOverlapping_ShiftOverlapOnce()
+            //{
+            //    var intervals = new[]
+            //    {
+            //        new Interval(0, 2),
+            //        new Interval(3, 4),
+            //    };
+            //    var collection = new DoublyLinkedFiniteIntervalTree<Interval, int>(intervals);
+            //    var interval = new Interval(1, 2);
 
-                Assert.That(collection.ForceAdd(interval, action), Is.True);
-                Assert.That(interval.IntervalEquals(new Interval(2, 3)));
-                Assert.That(callCount, Is.EqualTo(1));
-            }
+            //    Assert.That(collection.ForceAdd(interval, action), Is.True);
+            //    Assert.That(interval.IntervalEquals(new Interval(2, 3)));
+            //    Assert.That(callCount, Is.EqualTo(1));
+            //}
 
             [Test]
             public void ForceAdd_InsertWithSameLow_ShiftOverlapOnce()
