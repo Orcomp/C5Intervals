@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<package>
+  <metadata minClientVersion="2.8">
+    <id>c5.intervals</id>
+    <version>[VERSION]</version>
+	<title>C5.Intervals</title>
+    <authors>GeertvanHorrik</authors>
+    <owners>GeertvanHorrik</owners>
+	
+	<description>
+	  The C5 Generic Collection Library for C# and CLI is a comprehensive collection library supporting lists, sets, bags, dictionaries, 
+      priority queues, (FIFO) queues, and (LIFO) stacks. C5 runs on .NET 4.0, Silverlight 4, Windows Phone 7, Xbox 360, and Mono.
+	</description>
+	<summary>
+	</summary>
+	
+	<tags>c5 intervals</tags>
+	
+	<language>en-US</language>
+	<!--<projectUrl>http://www.catelproject.com</projectUrl>-->
+	<!--<licenseUrl>http://www.catelproject.com/license/</licenseUrl>-->
+	<!--<iconUrl>http://www.catenalogic.com/catel.png</iconUrl>-->
+	
+	<dependencies>
+	</dependencies>	
+  </metadata>
+</package>
