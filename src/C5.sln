@@ -4,13 +4,13 @@ VisualStudioVersion = 12.0.30501.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5", "C5\C5.csproj", "{D02E0664-C56C-4C3F-98E5-C8EC881A8439}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.Tests", "C5.Tests\C5.Tests.csproj", "{08CBFDEB-A2E2-4F0E-A4E1-B996B05569DE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.Test", "C5.Test\C5.Test.csproj", "{08CBFDEB-A2E2-4F0E-A4E1-B996B05569DE}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.UserGuideExamples", "C5.UserGuideExamples\C5.UserGuideExamples.csproj", "{B2A29FF2-A5C5-4F07-8CE7-FF5D744D7562}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.Intervals", "C5.Intervals\C5.Intervals.csproj", "{6C61DD88-12EC-4A7D-907C-56A8FD72EDB2}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.Intervals.Tests", "C5.Intervals.Tests\C5.Intervals.Tests.csproj", "{FCE2DE54-8506-43BF-AA94-07706B08A527}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "C5.Intervals.Test", "C5.Intervals.Test\C5.Intervals.Test.csproj", "{FCE2DE54-8506-43BF-AA94-07706B08A527}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F1DF39E6-2EC8-4593-A01C-6C1A842CEDBD}"
 EndProject
