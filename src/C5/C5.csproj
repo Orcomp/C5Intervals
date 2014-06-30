@@ -133,6 +133,9 @@
     </Reference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\SolutionAssemblyInfo.cs">
+      <Link>Properties\SolutionAssemblyInfo.cs</Link>
+    </Compile>
     <Compile Include="arrays\ArrayList.cs" />
     <Compile Include="arrays\CircularQueue.cs" />
     <Compile Include="arrays\HashedArrayList.cs" />

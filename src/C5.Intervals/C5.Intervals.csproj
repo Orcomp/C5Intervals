@@ -154,6 +154,9 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="..\SolutionAssemblyInfo.cs">
+      <Link>Properties\SolutionAssemblyInfo.cs</Link>
+    </Compile>
     <Compile Include="Code contracts\IntervalContractHelper.cs" />
     <Compile Include="Collections\Dynamic\DoublyLinkedFiniteIntervalTree.cs" />
     <Compile Include="Collections\Dynamic\DynamicIntervalTree.cs" />
@@ -179,19 +182,15 @@
     <None Include="README.md" />
   </ItemGroup>
   <ItemGroup>
-    <Folder Include="Code contracts\" />
+    <Reference Include="QuickGraph">
+      <HintPath>..\..\lib\QuickGraph.3.6.61114.0\QuickGraph.dll</HintPath>
+    </Reference>
+    <Reference Include="QuickGraph.Graphviz">
+      <HintPath>..\..\lib\QuickGraph.3.6.61114.0\QuickGraph.Graphviz.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <Choose>
-    <When Condition=" '$(Configuration)'=='DEBUG' ">
-      <ItemGroup>
-        <Reference Include="QuickGraph">
-          <HintPath>..\packages\QuickGraph.3.6.61114.0\QuickGraph.dll</HintPath>
-        </Reference>
-        <Reference Include="QuickGraph.Graphviz">
-          <HintPath>..\packages\QuickGraph.3.6.61114.0\QuickGraph.Graphviz.dll</HintPath>
-        </Reference>
-      </ItemGroup>
-    </When>
+    <When Condition=" '$(Configuration)'=='DEBUG' " />
   </Choose>
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\Portable\$(TargetFrameworkVersion)\Microsoft.Portable.CSharp.targets" />
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
