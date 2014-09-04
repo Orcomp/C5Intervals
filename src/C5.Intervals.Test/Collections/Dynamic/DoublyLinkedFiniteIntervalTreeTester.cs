@@ -10,7 +10,8 @@ namespace C5.Intervals.Tests
 {
     namespace DoublyLinkedFiniteIntervalTree
     {
-        using Interval = IntervalBase<int>;
+	    using Microsoft.Win32;
+	    using Interval = IntervalBase<int>;
 
         // TODO: Re-enable all black-box tests
 
@@ -137,6 +138,8 @@ namespace C5.Intervals.Tests
 
                     return this;
                 }
+
+
             }
 
             class IntervalBuilder
@@ -410,7 +413,74 @@ namespace C5.Intervals.Tests
             #region QuickGraph
             // TODO
             #endregion
-        }
+
+			#region GetNext
+
+	        [Test]
+	        public void GetNext_Empty()
+	        {
+				var collection = new Collection().ThatIsEmpty().Build();
+				Assert.AreEqual(0, collection.GetNext(new IntervalCollectionTester.Interval(10)).Count());
+	        }
+
+	        [Test]
+			public void GetNext_In()
+			{
+				const int count = 10;
+				var intervals = new IntervalCollectionTester.Interval[count];
+				var collection = new Collection().ThatIsEmpty().Build();
+				
+				for (int i = 0; i < count; i++)
+				{
+					var interval = new IntervalCollectionTester.Interval(i*10, i*10 + 1);
+					intervals[i] = interval;
+					collection.Add(interval);
+				}
+				for (int i = 0; i < count; i++)
+				{
+					var nextIntervals = collection.GetNext(intervals[i]).ToArray();
+					Assert.AreEqual(count - i - 1, nextIntervals.Count());
+					var expected = intervals.Skip(i + 1);
+					Assert.AreEqual(expected, nextIntervals);
+				}
+			}
+
+
+			#endregion
+
+			#region GetPrevious
+
+			[Test]
+			public void GetPrevious_Empty()
+			{
+				var collection = new Collection().ThatIsEmpty().Build();
+				Assert.AreEqual(0, collection.GetPrevious(new IntervalCollectionTester.Interval(10)).Count());
+			}
+
+			[Test]
+			public void GetPrevious_In()
+			{
+				const int count = 10;
+				var intervals = new IntervalCollectionTester.Interval[count];
+				var collection = new Collection().ThatIsEmpty().Build();
+
+				for (int i = 0; i < count; i++)
+				{
+					var interval = new IntervalCollectionTester.Interval(i * 10, i * 10 + 1);
+					intervals[i] = interval;
+					collection.Add(interval);
+				}
+				for (int i = 2; i < count; i++)
+				{
+					var previous = collection.GetPrevious(intervals[i]).ToArray();
+					Assert.AreEqual(i, previous.Count());
+					var expected = intervals.Take(i).Reverse();
+					Assert.AreEqual(expected, previous, string.Format("index: {0}", i));
+				}
+			}
+
+			#endregion
+		}
 
         /*
         [TestFixture]

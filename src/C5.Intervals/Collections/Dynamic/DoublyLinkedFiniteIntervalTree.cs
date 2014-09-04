@@ -553,6 +553,70 @@ namespace C5.Intervals
             get { return previousNodes(_last.Previous).Select(node => node.Key); }
         }
 
+
+		/// <summary>
+		/// Gets next intervals if any. Works lazy so using GetNext().FirstOrDefault() it will return the immediate next interval without iterating through the whole list.
+		/// </summary>
+		/// <param name="interval">The interval. Must be in the tree, otherwhise GetNext returns with and empty enumerable</param>
+		/// <returns>IEnumerable&lt;I&gt;.</returns>
+		[Pure]
+		public IEnumerable<I> GetNext(I interval)
+		{
+			Contract.Requires(interval != null);
+			var node = findNode(interval, _root);
+			if (node == null)
+			{
+				return Enumerable.Empty<I>();
+			}
+			return nextNodes(node.Next ?? node).Select(n => n.Key);
+		}
+		/// <summary>
+		/// Gets previous intervals if any. Works lazy so using GetPrevious().FirstOrDefault() it will return the immediate previous interval without iterating through the whole list.
+		/// </summary>
+		/// <param name="interval">The interval. Must be in the tree, otherwhise GetPrevious returns with and empty enumerable</param>
+		/// <returns>IEnumerable&lt;I&gt;.</returns>
+	    [Pure]
+		public IEnumerable<I> GetPrevious(I interval)
+		{
+			Contract.Requires(interval != null);
+			var node = findNode(interval, _root);
+			if (node == null)
+			{
+				return Enumerable.Empty<I>();
+			}
+			return previousNodes(node.Previous).Select(n => n.Key);
+		}
+
+		//[Pure]
+		//public I Find(I interval)
+		//{
+		//	return findNode(interval, _root).Key;
+		//}
+
+		
+		[Pure]
+		private static Node findNode(I interval, Node root)
+		{
+			if (root == null)
+			{
+				return null;
+			}
+
+			var compare = interval.CompareTo(root.Key);
+
+			if (compare < 0)
+			{
+				return findNode(interval, root.Left);
+			}
+			if (compare > 0)
+			{
+				return findNode(interval, root.Right);
+			}
+			return root;
+		}
+
+
+
         [Pure]
         private IEnumerable<Node> nextNodes(Node node)
         {
