@@ -248,6 +248,23 @@ namespace C5.Intervals
         void Clear();
 
         #endregion
+
+		#region Query
+	    /// <summary>
+	    /// Gets next intervals if any. Works lazy so using GetNext().FirstOrDefault() it will return the immediate next interval without iterating through the whole list.
+	    /// </summary>
+	    /// <param name="interval">The interval. Must be in the tree, otherwhise GetNext returns with and empty enumerable</param>
+	    /// <returns>IEnumerable&lt;I&gt;.</returns>
+	    IEnumerable<I> GetNext(I interval);
+
+	    /// <summary>
+	    /// Gets previous intervals if any. Works lazy so using GetPrevious().FirstOrDefault() it will return the immediate previous interval without iterating through the whole list.
+	    /// </summary>
+	    /// <param name="interval">The interval. Must be in the tree, otherwhise GetPrevious returns with and empty enumerable</param>
+	    /// <returns>IEnumerable&lt;I&gt;.</returns>
+
+	    IEnumerable<I> GetPrevious(I interval);
+	    #endregion
     }
 
     // TODO: Add helpful strings to code contracts instead of displaying the actual contract
@@ -637,7 +654,9 @@ namespace C5.Intervals
             throw new NotImplementedException();
         }
 
-        #endregion
+	    public abstract IEnumerable<I> GetNext(I interval);
+	    public abstract IEnumerable<I> GetPrevious(I interval);
+	    #endregion
 
         #region Non-interval methods
 

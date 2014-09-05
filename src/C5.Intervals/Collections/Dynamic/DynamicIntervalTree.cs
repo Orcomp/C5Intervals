@@ -1977,7 +1977,17 @@ namespace C5.Intervals
                 raiseCollectionChanged();
         }
 
-        private void clear()
+	    public IEnumerable<I> GetNext(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+
+	    public IEnumerable<I> GetPrevious(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+
+	    private void clear()
         {
             Contract.Ensures(_root == null);
             Contract.Ensures(_count == 0);

@@ -503,7 +503,16 @@ namespace C5.Intervals
             throw new ReadOnlyCollectionException();
         }
 
-        #endregion
+	    public IEnumerable<I> GetNext(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+
+	    public IEnumerable<I> GetPrevious(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+	    #endregion
 
         #endregion
     }

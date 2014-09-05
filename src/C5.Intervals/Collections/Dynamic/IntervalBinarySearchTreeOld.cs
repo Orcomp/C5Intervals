@@ -1842,7 +1842,17 @@ namespace C5.Intervals
                 raiseCollectionChanged();
         }
 
-        private void clear()
+	    public IEnumerable<I> GetNext(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+
+	    public IEnumerable<I> GetPrevious(I interval)
+	    {
+		    throw new NotImplementedException();
+	    }
+
+	    private void clear()
         {
             _root = null;
             _count = 0;
